@@ -158,7 +158,7 @@ namespace kdt
 			if (npoints <= 0)
 				return nullptr;
 
-			const int axis = depth % PointT::DIM;
+			const int axis = depth % PointT::dimension;
 			const int mid = (npoints - 1) / 2;
 
 			std::nth_element(indices, indices + mid, indices + npoints, [&](int lhs, int rhs)
@@ -222,7 +222,7 @@ namespace kdt
 		static double distance(const PointT& p, const PointT& q)
 		{
 			double dist = 0;
-			for (size_t i = 0; i < PointT::DIM; i++)
+			for (size_t i = 0; i < PointT::dimension; i++)
 				dist += (p[i] - q[i]) * (p[i] - q[i]);
 			return sqrt(dist);
 		}
