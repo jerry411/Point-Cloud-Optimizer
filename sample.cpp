@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 
-#include "kdtree.h"
+#include "kdtree.hpp"
 #include <iostream>
 
 // user-defined point type
@@ -14,7 +14,7 @@ public:
 
 	// dimension of space (or "k" of k-d tree)
 	// KDTree class accesses this member
-	static const int DIM = 3;
+	static const int dimension = 3;
 
 	// the constructors
 	my_point() : array() {}
