@@ -35,9 +35,9 @@ public:
 };
 
 vector<point> points; // points of point cloud themselves (there are expected to be millions of points == tens of millions of MB)
-unique_ptr<KDTree<point>> tree; // K-D tree holding indices from "points" vector
+unique_ptr<kd_tree<point>> tree; // K-D tree holding indices from "points" vector
 
-void import_point_cloud(string &file_name)
+void import_point_cloud(string& file_name)
 {
 
 	/**/
@@ -59,12 +59,12 @@ void build_tree()
 {
 	cout << "Building K-D tree. This may take several seconds depending on point cloud size." << endl;
 
-	tree = make_unique<KDTree<point>>(points);
+	tree = make_unique<kd_tree<point>>(points);
 
 	cout << "Finished building K-D tree." << endl;
 }
 
-int maina(const int argc, char *argv[])
+int maina(const int argc, char* argv[])
 {
 	string file_name;
 

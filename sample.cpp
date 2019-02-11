@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 	}
 
 	// build k-d tree
-	kdt::KDTree<my_point> kdtree(points);
+	kdt::kd_tree<my_point> kdtree(points);
 
 	// generate query (center of the space)
 	const my_point query(0.5 * width, 0.5 * height, 0.5 * height, 0, 0, 0, 0, 0, 0);
@@ -64,14 +64,14 @@ int main(int argc, char **argv)
 
 	// nearest neigbor search
 	//const cv::Mat I0 = img.clone();
-	const int idx = kdtree.nnSearch(query);
+	const int idx = kdtree.nn_search(query);
 	//cv::circle(I0, cv::Point2d(points[idx]), 1, cv::Scalar(255, 255, 0), -1);
 	//cv::line(I0, cv::Point2d(query), cv::Point2d(points[idx]), cv::Scalar(0, 0, 255));
 
 	// k-nearest neigbors search
 	//const cv::Mat I1 = img.clone();
 	const int k = 1000;
-	const std::vector<int> knn_indices = kdtree.knnSearch(query, k);
+	const std::vector<int> knn_indices = kdtree.knn_search(query, k);
 	for (int i : knn_indices)
 	{
 		std::cout << points[i][0] << "  " << points[i][1] << "  " << points[i][2] << "  " << points[i][3] << "  " << points[i][4] << "  " << points[i][5]
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
 	// radius search
 	//const cv::Mat I2 = img.clone();
 	const double radius = 50;
-	const std::vector<int> radIndices = kdtree.radiusSearch(query, radius);
+	const std::vector<int> radIndices = kdtree.radius_search(query, radius);
 	//for (int i : radIndices)
 		//cv::circle(I2, cv::Point2d(points[i]), 1, cv::Scalar(255, 255, 0), -1);
 	//cv::circle(I2, cv::Point2d(query), cvRound(radius), cv::Scalar(0, 0, 255));

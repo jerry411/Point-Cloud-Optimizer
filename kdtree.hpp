@@ -1,5 +1,5 @@
-#ifndef __KDTREE_H__
-#define __KDTREE_H__
+#ifndef KDTREE_H
+#define KDTREE_H
 
 #include <vector>
 #include <numeric>
@@ -12,17 +12,24 @@ namespace kdt
 	/** @brief k-d tree class.
 	*/
 	template <class PointT>
-	class KDTree
+	class kd_tree
 	{
 	public:
 		/** @brief The constructors.
 		*/
-		KDTree() : root_(nullptr) {};
-		KDTree(const std::vector<PointT>& points) : root_(nullptr) { build(points); }
+		kd_tree() : root_(nullptr) {};
+
+		explicit kd_tree(const std::vector<PointT>& points) : root_(nullptr)
+		{
+			build(points);
+		}
 
 		/** @brief The destructor.
 		*/
-		~KDTree() { clear(); }
+		~kd_tree()
+		{
+			clear();
+		}
 
 		/** @brief Re-builds k-d tree.
 		*/
@@ -35,14 +42,14 @@ namespace kdt
 			std::vector<int> indices(points.size());
 			std::iota(std::begin(indices), std::end(indices), 0);
 
-			root_ = buildRecursive(indices.data(), (int)points.size(), 0);
+			root_ = build_recursive(indices.data(), static_cast<int>(points.size()), 0);
 		}
 
 		/** @brief Clears k-d tree.
 		*/
 		void clear()
 		{ 
-			clearRecursive(root_);
+			clear_recursive(root_);
 			root_ = nullptr;
 			points_.clear();
 		}
@@ -53,9 +60,9 @@ namespace kdt
 		{
 			try
 			{
-				validateRecursive(root_, 0);
+				validate_recursive(root_, 0);
 			}
-			catch (const Exception&)
+			catch (const kd_tree_exception&)
 			{
 				return false;
 			}
@@ -65,27 +72,28 @@ namespace kdt
 
 		/** @brief Searches the nearest neighbor.
 		*/
-		int nnSearch(const PointT& query, double* minDist = nullptr) const
+		int nn_search(const PointT& query, double* min_dist = nullptr) const
 		{
 			int guess;
 			double _minDist = std::numeric_limits<double>::max();
 
-			nnSearchRecursive(query, root_, &guess, &_minDist);
+			nn_search_recursive(query, root_, &guess, &_minDist);
 
-			if (minDist)
-				*minDist = _minDist;
+			if (min_dist)
+				*min_dist = _minDist;
 
 			return guess;
 		}
 
 		/** @brief Searches k-nearest neighbors.
 		*/
-		std::vector<int> knnSearch(const PointT& query, int k) const
+		std::vector<int> knn_search(const PointT& query, int k) const
 		{
-			KnnQueue queue(k);
-			knnSearchRecursive(query, root_, queue, k);
+			knn_queue queue(k);
+			knn_search_recursive(query, root_, queue, k);
 			
 			std::vector<int> indices(queue.size());
+
 			for (size_t i = 0; i < queue.size(); i++)
 				indices[i] = queue[i].second;
 
@@ -94,10 +102,12 @@ namespace kdt
 
 		/** @brief Searches neighbors within radius.
 		*/
-		std::vector<int> radiusSearch(const PointT& query, double radius) const
+		std::vector<int> radius_search(const PointT& query, const double radius) const
 		{
 			std::vector<int> indices;
-			radiusSearchRecursive(query, root_, indices, radius);
+
+			radius_search_recursive(query, root_, indices, radius);
+
 			return indices;
 		}
 
@@ -105,42 +115,66 @@ namespace kdt
 
 		/** @brief k-d tree node.
 		*/
-		struct Node
+		struct tree_node
 		{
 			int idx;       //!< index to the original point
-			Node* next[2]; //!< pointers to the child nodes
+			tree_node* next[2]; //!< pointers to the child nodes
 			int axis;      //!< dimension's axis
 
-			Node() : idx(-1), axis(-1) { next[0] = next[1] = nullptr; }
+			tree_node() : idx(-1), axis(-1)
+			{
+				next[0] = next[1] = nullptr;
+			}
 		};
 
 		/** @brief k-d tree exception.
 		*/
-		class Exception : public std::exception { using std::exception::exception; };
+		class kd_tree_exception : public std::exception
+		{
+			using std::exception::exception;
+		};
 
 		/** @brief Bounded priority queue.
 		*/
 		template <class T, class Compare = std::less<T>>
-		class BoundedPriorityQueue
+		class bounded_priority_queue
 		{
 		public:
 
-			BoundedPriorityQueue() = delete;
-			BoundedPriorityQueue(size_t bound) : bound_(bound) { elements_.reserve(bound + 1); };
+			bounded_priority_queue() = delete;
+
+			explicit bounded_priority_queue(const size_t bound) : bound_(bound)
+			{
+				elements_.reserve(bound + 1);
+			};
 
 			void push(const T& val)
 			{
 				auto it = std::find_if(std::begin(elements_), std::end(elements_),
-					[&](const T& element){ return Compare()(val, element); });
+					[&](const T& element)
+				{
+					return Compare()(val, element);
+				});
 				elements_.insert(it, val);
 
 				if (elements_.size() > bound_)
 					elements_.resize(bound_);
 			}
 
-			const T& back() const { return elements_.back(); };
-			const T& operator[](size_t index) const { return elements_[index]; }
-			size_t size() const { return elements_.size(); }
+			const T& back() const
+			{
+				return elements_.back();
+			};
+
+			const T& operator[](size_t index) const
+			{
+				return elements_[index];
+			}
+
+			size_t size() const
+			{
+				return elements_.size();
+			}
 
 		private:
 			size_t bound_;
@@ -149,11 +183,11 @@ namespace kdt
 
 		/** @brief Priority queue of <distance, index> pair.
 		*/
-		using KnnQueue = BoundedPriorityQueue<std::pair<double, int>>;
+		using knn_queue = bounded_priority_queue<std::pair<double, int>>;
 
 		/** @brief Builds k-d tree recursively.
 		*/
-		Node* buildRecursive(int* indices, int npoints, int depth)
+		tree_node* build_recursive(int* indices, const int npoints, int depth)
 		{
 			if (npoints <= 0)
 				return nullptr;
@@ -161,62 +195,63 @@ namespace kdt
 			const int axis = depth % PointT::dimension;
 			const int mid = (npoints - 1) / 2;
 
-			std::nth_element(indices, indices + mid, indices + npoints, [&](int lhs, int rhs)
+			std::nth_element(indices, indices + mid, indices + npoints, 
+				[&](int lhs, int rhs)
 			{
 				return points_[lhs][axis] < points_[rhs][axis];
 			});
 
-			Node* node = new Node();
+			tree_node* node = new tree_node();
 			node->idx = indices[mid];
 			node->axis = axis;
 
-			node->next[0] = buildRecursive(indices, mid, depth + 1);
-			node->next[1] = buildRecursive(indices + mid + 1, npoints - mid - 1, depth + 1);
+			node->next[0] = build_recursive(indices, mid, depth + 1);
+			node->next[1] = build_recursive(indices + mid + 1, npoints - mid - 1, depth + 1);
 
 			return node;
 		}
 
 		/** @brief Clears k-d tree recursively.
 		*/
-		void clearRecursive(Node* node)
+		void clear_recursive(tree_node* node)
 		{
 			if (node == nullptr)
 				return;
 
 			if (node->next[0])
-				clearRecursive(node->next[0]);
+				clear_recursive(node->next[0]);
 
 			if (node->next[1])
-				clearRecursive(node->next[1]);
+				clear_recursive(node->next[1]);
 
 			delete node;
 		}
 
 		/** @brief Validates k-d tree recursively.
 		*/
-		void validateRecursive(const Node* node, int depth) const
+		void validate_recursive(const tree_node* node, const int depth) const
 		{
 			if (node == nullptr)
 				return;
 
 			const int axis = node->axis;
-			const Node* node0 = node->next[0];
-			const Node* node1 = node->next[1];
+			const tree_node* node0 = node->next[0];
+			const tree_node* node1 = node->next[1];
 
 			if (node0 && node1)
 			{
 				if (points_[node->idx][axis] < points_[node0->idx][axis])
-					throw Exception();
+					throw kd_tree_exception();
 
 				if (points_[node->idx][axis] > points_[node1->idx][axis])
-					throw Exception();
+					throw kd_tree_exception();
 			}
 
 			if (node0)
-				validateRecursive(node0, depth + 1);
+				validate_recursive(node0, depth + 1);
 
 			if (node1)
-				validateRecursive(node1, depth + 1);
+				validate_recursive(node1, depth + 1);
 		}
 
 		static double distance(const PointT& p, const PointT& q)
@@ -229,7 +264,7 @@ namespace kdt
 
 		/** @brief Searches the nearest neighbor recursively.
 		*/
-		void nnSearchRecursive(const PointT& query, const Node* node, int *guess, double *minDist) const
+		void nn_search_recursive(const PointT& query, const tree_node* node, int* guess, double* min_dist) const
 		{
 			if (node == nullptr)
 				return;
@@ -237,24 +272,24 @@ namespace kdt
 			const PointT& train = points_[node->idx];
 
 			const double dist = distance(query, train);
-			if (dist < *minDist)
+			if (dist < *min_dist)
 			{
-				*minDist = dist;
+				*min_dist = dist;
 				*guess = node->idx;
 			}
 
 			const int axis = node->axis;
 			const int dir = query[axis] < train[axis] ? 0 : 1;
-			nnSearchRecursive(query, node->next[dir], guess, minDist);
+			nn_search_recursive(query, node->next[dir], guess, min_dist);
 
 			const double diff = fabs(query[axis] - train[axis]);
-			if (diff < *minDist)
-				nnSearchRecursive(query, node->next[!dir], guess, minDist);
+			if (diff < *min_dist)
+				nn_search_recursive(query, node->next[!dir], guess, min_dist);
 		}
 
 		/** @brief Searches k-nearest neighbors recursively.
 		*/
-		void knnSearchRecursive(const PointT& query, const Node* node, KnnQueue& queue, int k) const
+		void knn_search_recursive(const PointT& query, const tree_node* node, knn_queue& queue, const int k) const
 		{
 			if (node == nullptr)
 				return;
@@ -266,16 +301,16 @@ namespace kdt
 
 			const int axis = node->axis;
 			const int dir = query[axis] < train[axis] ? 0 : 1;
-			knnSearchRecursive(query, node->next[dir], queue, k);
+			knn_search_recursive(query, node->next[dir], queue, k);
 
 			const double diff = fabs(query[axis] - train[axis]);
-			if ((int)queue.size() < k || diff < queue.back().first)
-				knnSearchRecursive(query, node->next[!dir], queue, k);
+			if (static_cast<int>(queue.size()) < k || diff < queue.back().first)
+				knn_search_recursive(query, node->next[!dir], queue, k);
 		}
 
 		/** @brief Searches neighbors within radius.
 		*/
-		void radiusSearchRecursive(const PointT& query, const Node* node, std::vector<int>& indices, double radius) const
+		void radius_search_recursive(const PointT& query, const tree_node* node, std::vector<int>& indices, const double radius) const
 		{
 			if (node == nullptr)
 				return;
@@ -288,16 +323,16 @@ namespace kdt
 
 			const int axis = node->axis;
 			const int dir = query[axis] < train[axis] ? 0 : 1;
-			radiusSearchRecursive(query, node->next[dir], indices, radius);
+			radius_search_recursive(query, node->next[dir], indices, radius);
 
 			const double diff = fabs(query[axis] - train[axis]);
 			if (diff < radius)
-				radiusSearchRecursive(query, node->next[!dir], indices, radius);
+				radius_search_recursive(query, node->next[!dir], indices, radius);
 		}
 
-		Node* root_;                 //!< root node
-		std::vector<PointT> points_; //!< points
+		tree_node* root_;				//!< root node
+		std::vector<PointT> points_;	//!< points
 	};
 } // kdt
 
-#endif // !__KDTREE_H__
+#endif // !KDTREE_H
