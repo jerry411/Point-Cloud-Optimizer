@@ -34,7 +34,7 @@ public:
 	}
 };
 
-int main(int argc, char **argv)
+int a(int argc, char **argv)
 {
 	const int seed = argc > 1 ? std::stoi(argv[1]) : 0;
 	srand(seed);
