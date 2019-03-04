@@ -23,7 +23,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="kdtree.h">
+    <ClInclude Include="kdtree.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="point.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

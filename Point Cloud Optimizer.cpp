@@ -59,7 +59,7 @@ void cluster_initialization()
 			selected.is_centroid = true;
 			selected.is_marked = true;
 
-			vector<int> neighbours_indices = tree.knn_search(selected, space_interval_dt);
+			vector<int> neighbours_indices = tree.knn_search(selected, static_cast<int>(space_interval_dt));
 
 			vector<int> new_cluster(i); // index of centroid of a cluster is first in vector
 			new_cluster.reserve(neighbours_indices.size() + 1);
@@ -103,7 +103,7 @@ float manual_float_input(const bool is_space_interval)
 
 	if (input.empty())
 	{
-		cout << endl << "Using default" + text + ": " << default_value << endl << endl;
+		cout << endl << "Invalid value. Using default value (" << default_value << ") for " << text << " instead."<< endl;
 		return default_value;
 	}
 
@@ -111,11 +111,11 @@ float manual_float_input(const bool is_space_interval)
 
 	try
 	{
-		return_value = stoi(input);
+		return_value = stof(input);
 	}
 	catch (const std::exception&)
 	{
-		cout << endl << "Using default" + text + ": " << default_value << endl << endl;
+		cout << endl << "Invalid value. Using default value (" << default_value << ") for " << text << " instead." << endl;
 		return default_value;
 	}
 
@@ -130,7 +130,7 @@ void process_float_arg(const int argc, char** argv, const int index, const bool 
 
 		try
 		{
-			space_interval_dt = stoi(arg);
+			space_interval_dt = stof(arg);
 		}
 		catch (const std::exception&)
 		{
@@ -175,6 +175,8 @@ string process_args(const int argc, char* argv[])
 	process_float_arg(argc, argv, 2, true); // third argument is space interval (DT)
 
 	process_float_arg(argc, argv, 3, false); // fourth argument is vector deviation (NT)
+
+	return file_name;
 }
 
 int main(const int argc, char* argv[])

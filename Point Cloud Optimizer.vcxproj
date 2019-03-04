@@ -163,7 +163,8 @@
     <ClCompile Include="sample.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="kdtree.h" />
+    <ClInclude Include="kdtree.hpp" />
+    <ClInclude Include="point.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
