@@ -11,8 +11,6 @@ public:
 	bool is_centroid = false;
 	bool is_marked = false;;
 
-	int cluster_id = -1; // should be possitive number; -1 used as error indication value
-
 	// default constructor
 	point() : array() {}
 

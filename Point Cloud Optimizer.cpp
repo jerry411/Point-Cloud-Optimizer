@@ -98,31 +98,31 @@ void cluster_initialization()
 {
 	for (size_t i = 0; i < points.size(); i++)
 	{
-		point selected = points[i];
+		point& selected = points[i];
 
-		if (!selected.is_marked)
+		if (!points[i].is_marked)
 		{
 			selected.is_centroid = true;
-			selected.is_marked = true;
 
 			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
-			vector<int> neighbours_indices = tree.knn_search(selected, static_cast<int>(space_interval_dt));
+			vector<int> neighbours_indices = tree.knn_search(points[i], static_cast<int>(space_interval_dt));
 
-			vector<int> new_cluster; // TODO: direct write to cluster at clusters[x]
-			new_cluster.reserve(neighbours_indices.size());
+			// create new cluster
+			clusters.resize(clusters.size() + 1);
+			vector<int>& current_cluster = clusters[clusters.size() - 1];
+			current_cluster.reserve(neighbours_indices.size());
 
+			// fill the new cluster
 			for (size_t j = 0; j < neighbours_indices.size(); j++)
 			{
-				if (!points[neighbours_indices[j]].is_marked) // do not copy indices to marked points to cluster
-				{
-					new_cluster.push_back(neighbours_indices[j]);
-					points[neighbours_indices[j]].is_marked = true;
-				}				
-			}
+				int point_index = neighbours_indices[j];
 
-			// move new cluster to global variable clusters
-			clusters.resize(clusters.size() + 1);
-			clusters[clusters.size() - 1] = move(new_cluster);
+				if (!points[point_index].is_marked) // do not copy indices to marked points to cluster
+				{
+					current_cluster.push_back(point_index);
+					points[point_index].is_marked = true;
+				}
+			}
 		}
 	}
 }
@@ -211,7 +211,7 @@ float manual_float_input(const user_def_variables user_var)
 	switch (user_var)
 	{
 	case space_interval_var:
-		if (user_var_value_is_valid(return_value, space_interval_var))
+		if (!user_var_value_is_valid(return_value, space_interval_var))
 		{
 			cout << "Value must be greater than 0. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 			return default_value;
@@ -219,7 +219,7 @@ float manual_float_input(const user_def_variables user_var)
 		break;
 
 	case vector_deviation_var:
-		if (user_var_value_is_valid(return_value, vector_deviation_var))
+		if (!user_var_value_is_valid(return_value, vector_deviation_var))
 		{
 			cout << "Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 			return default_value;
@@ -251,7 +251,7 @@ float process_float_arg(const int argc, char** argv, const int index, const user
 			switch (user_var)
 			{
 			case space_interval_var:
-				if (user_var_value_is_valid(return_value, space_interval_var))
+				if (!user_var_value_is_valid(return_value, space_interval_var))
 				{
 					cout << "Invalid value in argument. Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 					return manual_float_input(user_var);
@@ -259,7 +259,7 @@ float process_float_arg(const int argc, char** argv, const int index, const user
 				break;
 
 			case vector_deviation_var:
-				if (user_var_value_is_valid(return_value, vector_deviation_var))
+				if (!user_var_value_is_valid(return_value, vector_deviation_var))
 				{
 					cout << "Invalid value in argument. Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 					return manual_float_input(user_var);
