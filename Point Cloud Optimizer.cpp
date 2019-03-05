@@ -1,9 +1,11 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 
 #include "point.hpp"
 #include "kdtree.hpp"
+#include <sstream>
 
 using namespace std;
 using namespace kdt;
@@ -20,27 +22,47 @@ float vector_deviation_nt;
 float space_interval_dt_default = 1;
 float vector_deviation_nt_default = 0.5;
 
+enum user_def_variables { space_interval_var, vector_deviation_var };
+
 string file_name_extention(".ply");
 string default_file_name("PointCloud" + file_name_extention);
 
 void import_point_cloud(string& file_name)
 {
+	ifstream in_file(file_name);
 
-	/**/
+	cout << endl << "Importing and parsing file: " + file_name << endl;
 
-	cout << "Importing and parsing file: " + file_name << endl;
+	// process first part of header
+	string line, token;
+	for (size_t i = 0; i < 3; i++)
+		getline(in_file, line);
 
-	size_t size = 123456;
-	points = vector<point>(size);
+	// process number of vertices
+	stringstream line_ss(line);
+	for (size_t i = 0; i < 3; i++)
+		getline(line_ss, token, ' ');
 
-	/**/
+	points = vector<point>();
 
-	cout << "File " + file_name + " successfully imported and parsed";
+	// process rest of header
+	while (in_file >> line)
+		if (line == "end_header")
+			break;
+
+	// process actual vertices
+	float x, y, z, r, g, b, nx, ny, nz;
+	while (in_file >> x >> y >> z >> r >> g >> b >> nx >> ny >> nz)
+	{
+		points.emplace_back(x, y, z, r, g, b, nx, ny, nz);
+	}
+
+	cout << "File " + file_name + " successfully imported and parsed" << endl << endl;
 }
 
 void build_tree()
 {
-	cout << "Building K-D tree. This may take several seconds depending on point cloud size." << endl;
+	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
 
 	tree = kd_tree<point>(points);
 
@@ -80,19 +102,19 @@ void cluster_initialization()
 	}
 }
 
-float manual_float_input(const bool is_space_interval)
+float manual_float_input(const user_def_variables variable)
 {
 	string text;
 	float default_value;
 
-	if (is_space_interval)
+	if (variable == space_interval_var)
 	{
 		text = "Space Interval (DT)";
 		default_value = space_interval_dt_default;
 	}
 	else
 	{
-		text = "Space Interval (DT)";
+		text = "Normal Vector Deviation (NT)";
 		default_value = vector_deviation_nt_default;
 	}
 
@@ -103,7 +125,8 @@ float manual_float_input(const bool is_space_interval)
 
 	if (input.empty())
 	{
-		cout << endl << "Invalid value. Using default value (" << default_value << ") for " << text << " instead."<< endl;
+		cout << "Invalid value. Using default value (" << default_value << ") for " << text << " instead."<< endl;
+
 		return default_value;
 	}
 
@@ -115,31 +138,31 @@ float manual_float_input(const bool is_space_interval)
 	}
 	catch (const std::exception&)
 	{
-		cout << endl << "Invalid value. Using default value (" << default_value << ") for " << text << " instead." << endl;
+		cout << "Invalid value. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 		return default_value;
 	}
 
 	return  return_value;
 }
 
-void process_float_arg(const int argc, char** argv, const int index, const bool is_space_interval)
+float process_float_arg(const int argc, char** argv, const int index, const user_def_variables variable)
 {
-	if (argc > index)	// third argument is space interval (DT)
+	if (argc > index)
 	{
 		const string arg(argv[index]);
 
 		try
 		{
-			space_interval_dt = stof(arg);
+			return stof(arg);
 		}
 		catch (const std::exception&)
 		{
-			manual_float_input(true);
+			return manual_float_input(variable);
 		}	
 	}
 	else
 	{
-		manual_float_input(true);
+		return manual_float_input(variable);
 	}
 }
 
@@ -163,7 +186,7 @@ string process_args(const int argc, char* argv[])
 
 		if (file_name.empty())
 		{
-			cout << endl << "Using default file name: " << default_file_name << endl << endl;
+			cout << "Using default file name: " << default_file_name << endl;
 			file_name = default_file_name;
 		}
 		else if (file_name.length() < 5 || file_name.find_last_of(file_name_extention) != file_name.length() - file_name_extention.length())
@@ -172,9 +195,9 @@ string process_args(const int argc, char* argv[])
 		}
 	}
 
-	process_float_arg(argc, argv, 2, true); // third argument is space interval (DT)
+	space_interval_dt = process_float_arg(argc, argv, 2, space_interval_var); // third argument is space interval (DT)
 
-	process_float_arg(argc, argv, 3, false); // fourth argument is vector deviation (NT)
+	vector_deviation_nt = process_float_arg(argc, argv, 3, vector_deviation_var); // fourth argument is vector deviation (NT)
 
 	return file_name;
 }
@@ -187,9 +210,9 @@ int main(const int argc, char* argv[])
 	{
 		import_point_cloud(file_name);
 	}
-	catch (const std::exception&)
+	catch (const std::exception& e)
 	{
-		cout << "Error! File " + file_name + " was not successfully imported or parsed!";
+		cout << endl << endl << "Error! File " + file_name + " was not successfully imported or parsed!";
 		return -1;
 	}
 
