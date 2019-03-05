@@ -15,13 +15,70 @@ namespace kdt
 	class kd_tree
 	{
 	public:
-		/** @brief The constructors.
+		/** @brief Default parameter-less constructor.
 		*/
 		kd_tree() : root_(nullptr) {};
 
+		/** @brief Default parameterized constructor.
+		*/
 		explicit kd_tree(const std::vector<PointT>& points) : root_(nullptr)
 		{
 			build(points);
+		}
+
+		/** @brief Copy constructor.
+		*/
+		kd_tree(const kd_tree<PointT>& other)
+		{
+			root_ = other.root_;
+			points_ = other.points_;
+		}
+
+		/** @brief Move constructor.
+		*/
+		kd_tree(kd_tree<PointT>&& other) noexcept
+		{
+			other.swap(*this);
+
+			other.~kd_tree();
+		}
+
+		/** @brief Standard swap function.
+		*/
+		void swap(kd_tree<PointT>& other) noexcept
+		{
+			std::vector<PointT> temp_points = other.points_;
+			tree_node* temp_root = other.root_;
+
+			other.points_ = points_;
+			other.root_ = root_;
+
+			points_ = temp_points;
+			root_ = temp_root;
+		}
+
+		/** @brief Copy assignment operator.
+		*/
+		kd_tree<PointT>& operator= (const kd_tree<PointT>& other)
+		{
+			kd_tree<PointT> temp(other);
+
+			temp.swap(*this);
+
+			temp.~kd_tree();
+
+			return *this;
+		}
+
+		/** @brief Move assignment operator.
+		*/
+		kd_tree<PointT>& operator= (kd_tree<PointT>&& other) noexcept
+		{
+			other.swap(*this);
+
+			other.~kd_tree();
+
+			return *this;
 		}
 
 		/** @brief The destructor.
