@@ -81,17 +81,19 @@ void cluster_initialization()
 			selected.is_centroid = true;
 			selected.is_marked = true;
 
+			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
 			vector<int> neighbours_indices = tree.knn_search(selected, static_cast<int>(space_interval_dt));
 
-			vector<int> new_cluster(i); // index of centroid of a cluster is first in vector
-			new_cluster.reserve(neighbours_indices.size() + 1);
+			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
+			vector<int> new_cluster;
+			new_cluster.reserve(neighbours_indices.size());
 
 			for (size_t j = 0; j < neighbours_indices.size(); j++)
 			{
-				if (!points[j].is_marked)
+				if (!points[neighbours_indices[j]].is_marked) // do not copy indices to marked points to cluster
 				{
 					new_cluster.push_back(neighbours_indices[j]);
-					points[j].is_marked = true;
+					points[neighbours_indices[j]].is_marked = true;
 				}				
 			}
 
@@ -102,20 +104,25 @@ void cluster_initialization()
 	}
 }
 
-float manual_float_input(const user_def_variables variable)
+float manual_float_input(const user_def_variables user_var)
 {
 	string text;
-	float default_value;
+	float default_value = 0;
 
-	if (variable == space_interval_var)
+	switch (user_var)
 	{
+	case space_interval_var:
 		text = "Space Interval (DT)";
 		default_value = space_interval_dt_default;
-	}
-	else
-	{
+		break;
+
+	case vector_deviation_var:		
 		text = "Normal Vector Deviation (NT)";
 		default_value = vector_deviation_nt_default;
+		break;
+
+	default:
+		break;
 	}
 
 	string input;
@@ -125,8 +132,7 @@ float manual_float_input(const user_def_variables variable)
 
 	if (input.empty())
 	{
-		cout << "Invalid value. Using default value (" << default_value << ") for " << text << " instead."<< endl;
-
+		cout << "Invalid value. Using default value (" << default_value << ") for " << text << " instead."<< endl << endl;
 		return default_value;
 	}
 
@@ -142,8 +148,31 @@ float manual_float_input(const user_def_variables variable)
 		return default_value;
 	}
 
+	switch (user_var)
+	{
+	case space_interval_var:
+		if (return_value <= 0)
+		{
+			cout << "Value must be greater than 0. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
+			return default_value;
+		}
+		break;
+
+	case vector_deviation_var:
+		if (return_value < 0 || return_value > 1)
+		{
+			cout << "Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
+			return default_value;
+		}
+		break;
+
+	default:
+		break;
+	}
+
 	return  return_value;
 }
+
 
 float process_float_arg(const int argc, char** argv, const int index, const user_def_variables variable)
 {
@@ -202,6 +231,24 @@ string process_args(const int argc, char* argv[])
 	return file_name;
 }
 
+vector<int> boundary_cluster_detection()
+{
+	
+}
+
+void boundary_cluster_subdivision(const vector<int>& boundary_clusters)
+{
+	
+}
+
+void main_cluster_subdivision()
+{
+	for (size_t i = 0; i < clusters.size(); i++)
+	{
+		
+	}
+}
+
 int main(const int argc, char* argv[])
 {
 	string file_name = process_args(argc, argv);
@@ -210,7 +257,7 @@ int main(const int argc, char* argv[])
 	{
 		import_point_cloud(file_name);
 	}
-	catch (const std::exception& e)
+	catch (const std::exception&)
 	{
 		cout << endl << endl << "Error! File " + file_name + " was not successfully imported or parsed!";
 		return -1;
@@ -219,6 +266,11 @@ int main(const int argc, char* argv[])
 	build_tree();	
 
 	cluster_initialization();
+
+	//const vector<int> boundary_clusters = boundary_cluster_detection();
+	//boundary_cluster_subdivision(boundary_clusters);
+
+	main_cluster_subdivision();
 
 	return 0;
 }
