@@ -13,13 +13,15 @@ using namespace kdt;
 typedef vector<int> cluster; //TODO: int to size_t
 
 vector<point> points; // points of point cloud themselves (there are expected to be millions of points == tens of millions of bytes)
-vector<cluster> clusters;
+vector<cluster> clusters; // vector of clusters, where cluster holds indices to its members (first index refers to cluster centroid)
 kd_tree<point> tree; // K-D tree holding indices from "points" vector
 
+// Space Interval Threshold (DT) - largest distance from cluster centroid to any cluster member
 float space_interval_dt;
-float vector_deviation_nt;
-
 float space_interval_dt_default = 1;
+
+// Normal Vector Deviation Threshold (NT) - largest deviation of normal vectors of any pair of cluster members (otherwise cluster is divided)
+float vector_deviation_nt;
 float vector_deviation_nt_default = 0.5;
 
 enum user_def_variables { space_interval_var, vector_deviation_var };
@@ -27,6 +29,24 @@ enum user_def_variables { space_interval_var, vector_deviation_var };
 string file_name_extention(".ply");
 string default_file_name("PointCloud" + file_name_extention);
 
+/** @brief Parses point cloud from external ASCII .ply file. 
+ *File is expected to comply .fly standards with this specific structure/header:
+ 
+ply
+format ascii 1.0
+element vertex <number of vertices>
+property float x
+property float y
+property float z
+property uchar red
+property uchar green
+property uchar blue
+property float nx
+property float ny
+property float nz
+end_header
+
+*/
 void import_point_cloud(string& file_name)
 {
 	ifstream in_file(file_name);
@@ -60,6 +80,8 @@ void import_point_cloud(string& file_name)
 	cout << "File " + file_name + " successfully imported and parsed" << endl << endl;
 }
 
+/** @brief Builds k-d tree from points
+*/
 void build_tree()
 {
 	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
@@ -69,7 +91,9 @@ void build_tree()
 	cout << "Finished building K-D tree." << endl;
 }
 
-// if point is not marked, it becames centroid of new cluster which contains neighbours from space_interval_dt distance
+/** @brief Creates initial clusters. If point is not marked, it becames centroid of new cluster. 
+ *	This new cluster contains non-marked neighbours of centroid whose distance is less than or equal to Space Interval Threshold (DT).
+*/
 void cluster_initialization()
 {
 	for (size_t i = 0; i < points.size(); i++)
@@ -84,8 +108,7 @@ void cluster_initialization()
 			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
 			vector<int> neighbours_indices = tree.knn_search(selected, static_cast<int>(space_interval_dt));
 
-			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
-			vector<int> new_cluster;
+			vector<int> new_cluster; // TODO: direct write to cluster at clusters[x]
 			new_cluster.reserve(neighbours_indices.size());
 
 			for (size_t j = 0; j < neighbours_indices.size(); j++)
@@ -104,26 +127,63 @@ void cluster_initialization()
 	}
 }
 
-float manual_float_input(const user_def_variables user_var)
+/** @brief Decides whether value of specific user variable is valid.
+*/
+bool user_var_value_is_valid(const float value, const user_def_variables user_var)
 {
-	string text;
-	float default_value = 0;
-
 	switch (user_var)
 	{
 	case space_interval_var:
-		text = "Space Interval (DT)";
-		default_value = space_interval_dt_default;
-		break;
+		return value > 0; // space interval must be positive (for 0 we would output same point cloud as in input)
 
-	case vector_deviation_var:		
-		text = "Normal Vector Deviation (NT)";
-		default_value = vector_deviation_nt_default;
-		break;
+	case vector_deviation_var:
+		return !(value < 0 || value > 1); // Normal Vector Deviation Threshold (NT) must be between 0 and 1
 
 	default:
-		break;
+		return false;
 	}
+}
+
+/** @brief Returns name of specific user variable (Space Interval Threshold (DT) or Normal Vector Deviation Threshold (NT)).
+*/
+string text_for_user_variable(const user_def_variables user_var)
+{
+	switch (user_var)
+	{
+	case space_interval_var:
+		return "Space Interval Threshold (DT)";
+
+	case vector_deviation_var:
+		return "Normal Vector Deviation Threshold(NT)";
+
+	default:
+		return "";
+	}
+}
+
+/** @brief Returns default value of specific user variable (Space Interval Threshold (DT) or Normal Vector Deviation Threshold (NT)).
+*/
+float default_for_user_variable(const user_def_variables user_var)
+{
+	switch (user_var)
+	{
+	case space_interval_var:
+		return space_interval_dt_default;
+
+	case vector_deviation_var:
+		return vector_deviation_nt_default;
+
+	default:
+		return -1;
+	}
+}
+
+/** @brief Processes manual input of float value for user variables to console. If values are not valid, default values are used.
+*/
+float manual_float_input(const user_def_variables user_var)
+{
+	const string text = text_for_user_variable(user_var);
+	const float default_value = default_for_user_variable(user_var);
 
 	string input;
 
@@ -151,7 +211,7 @@ float manual_float_input(const user_def_variables user_var)
 	switch (user_var)
 	{
 	case space_interval_var:
-		if (return_value <= 0)
+		if (user_var_value_is_valid(return_value, space_interval_var))
 		{
 			cout << "Value must be greater than 0. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 			return default_value;
@@ -159,7 +219,7 @@ float manual_float_input(const user_def_variables user_var)
 		break;
 
 	case vector_deviation_var:
-		if (return_value < 0 || return_value > 1)
+		if (user_var_value_is_valid(return_value, vector_deviation_var))
 		{
 			cout << "Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
 			return default_value;
@@ -173,28 +233,60 @@ float manual_float_input(const user_def_variables user_var)
 	return  return_value;
 }
 
-
-float process_float_arg(const int argc, char** argv, const int index, const user_def_variables variable)
+/** @brief Processes input float arguments. If there are no arguments or values are invalid, used is asked to provide them to console.
+*/
+float process_float_arg(const int argc, char** argv, const int index, const user_def_variables user_var)
 {
 	if (argc > index)
 	{
 		const string arg(argv[index]);
 
+		const string text = text_for_user_variable(user_var);
+		const float default_value = default_for_user_variable(user_var);
+
 		try
 		{
-			return stof(arg);
+			const float return_value = stof(arg);
+
+			switch (user_var)
+			{
+			case space_interval_var:
+				if (user_var_value_is_valid(return_value, space_interval_var))
+				{
+					cout << "Invalid value in argument. Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
+					return manual_float_input(user_var);
+				}
+				break;
+
+			case vector_deviation_var:
+				if (user_var_value_is_valid(return_value, vector_deviation_var))
+				{
+					cout << "Invalid value in argument. Value must be between 0 and 1. Using default value (" << default_value << ") for " << text << " instead." << endl << endl;
+					return manual_float_input(user_var);
+				}
+				break;
+
+			default:
+				break;
+			}
+
+			return return_value;
 		}
 		catch (const std::exception&)
 		{
-			return manual_float_input(variable);
+			cout << "Invalid value in argument." << endl << endl;
+			return manual_float_input(user_var);
 		}	
 	}
 	else
 	{
-		return manual_float_input(variable);
+		return manual_float_input(user_var);
 	}
 }
 
+/** @brief Processes input arguments containing filename and user defined variables (Space Interval Threshold (DT) and Normal Vector Deviation Threshold (NT)).
+ *	If there are no arguments, used is asked to provide them to console.
+*/
 string process_args(const int argc, char* argv[])
 {
 	string file_name;
@@ -224,14 +316,14 @@ string process_args(const int argc, char* argv[])
 		}
 	}
 
-	space_interval_dt = process_float_arg(argc, argv, 2, space_interval_var); // third argument is space interval (DT)
+	space_interval_dt = process_float_arg(argc, argv, 2, space_interval_var); // third argument is Space Interval Threshold (DT)
 
-	vector_deviation_nt = process_float_arg(argc, argv, 3, vector_deviation_var); // fourth argument is vector deviation (NT)
+	vector_deviation_nt = process_float_arg(argc, argv, 3, vector_deviation_var); // fourth argument is Normal Vector Deviation Threshold (NT)
 
 	return file_name;
 }
 
-vector<int> boundary_cluster_detection()
+/*vector<int> boundary_cluster_detection()
 {
 	
 }
@@ -239,6 +331,52 @@ vector<int> boundary_cluster_detection()
 void boundary_cluster_subdivision(const vector<int>& boundary_clusters)
 {
 	
+}*/
+
+/** @brief Standard deviation of normal vectors of 2 points. Normal vectors are expected to be normalized, therefore return value is between 0 and 1.
+*/
+float standard_deviation(point& p1, point& p2)
+{
+	float sum = 0;
+
+	for (size_t i = 0; i < 3; i++)
+		sum += pow(p1[i] - p2[i], 2);
+
+	return sqrt((sum) / 2);
+}
+
+/** @brief Cluster should be divided if maximal deviation of normal vectors of any pair is larger than Normal Vector Deviation Threshold (NT).
+*/
+bool cluster_should_be_divided(vector<int>& cluster, pair<int, int>& means)
+{
+	float max_deviation = 0;
+	int p1_max, p2_max;
+
+	for (size_t i = 0; i < cluster.size() - 1; i++)
+	{
+		for (size_t j = i; j < cluster.size(); j++)
+		{
+			const float local_deviation = standard_deviation(points[cluster[i]], points[cluster[j]]);
+
+			if (local_deviation > max_deviation)
+			{
+				max_deviation = local_deviation;
+				p1_max = cluster[i];
+				p2_max = cluster[j];
+			}
+		}
+	}
+
+	if (max_deviation >= vector_deviation_nt)
+	{
+		means = { p1_max , p2_max };
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 void main_cluster_subdivision()
@@ -249,6 +387,10 @@ void main_cluster_subdivision()
 	}
 }
 
+/** @brief Entry point. Arguments should contain filename as string, Space Interval Threshold (DT) as float 
+ *	and normal Normal Vector Deviation Threshold (NT) as float.
+ *	If any of these arguments is missing or is invalid, user is asked to provide them to console.
+*/
 int main(const int argc, char* argv[])
 {
 	string file_name = process_args(argc, argv);
