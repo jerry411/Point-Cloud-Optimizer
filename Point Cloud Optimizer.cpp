@@ -345,12 +345,19 @@ float standard_deviation(point& p1, point& p2)
 	return sqrt((sum) / 2);
 }
 
-/** @brief Cluster should be divided if maximal deviation of normal vectors of any pair is larger than Normal Vector Deviation Threshold (NT).
+/** @brief Returns new means (indices to cluster of pair of points with largest deviation of normal vectors).
+ *	If this deviation is larger than Normal Vector Deviation Threshold (NT), cluster should be divided.
+ *	Returns pair (-1, -1) as indicator if cluster should not be divided.
 */
-bool cluster_should_be_divided(vector<int>& cluster, pair<int, int>& means)
+pair<int, int> new_means(cluster& cluster)
 {
+	if (cluster.size() <= 1) // cluster with 1 member should not be divided
+	{
+		return {-1, -1};
+	}
+
 	float max_deviation = 0;
-	int p1_max, p2_max;
+	int max_index1, max_index2;
 
 	for (size_t i = 0; i < cluster.size() - 1; i++)
 	{
@@ -361,30 +368,96 @@ bool cluster_should_be_divided(vector<int>& cluster, pair<int, int>& means)
 			if (local_deviation > max_deviation)
 			{
 				max_deviation = local_deviation;
-				p1_max = cluster[i];
-				p2_max = cluster[j];
+				max_index1 = i;
+				max_index2 = j;
 			}
 		}
 	}
 
 	if (max_deviation >= vector_deviation_nt)
 	{
-		means = { p1_max , p2_max };
-
-		return true;
+		return { max_index1, max_index2 }; // indices to cluster of pair of points with largest deviation of normal vectors 
 	}
 	else
 	{
-		return false;
+		return { -1, -1 }; // indicator that cluster should not be divided
 	}
 }
 
+pair<cluster, cluster> k_means_clustering(const cluster& init_cluster)
+{
+	//************
+	cluster temp1, temp2;
+	return { temp1, temp2 };
+}
+
+vector<cluster> new_clusters;
+
+/** @brief Decides whether cluster should be divided. If yes, it is recursively divided using k-means. If no, it is added to new_clusters.
+*/
+void recursive_cluster_subdivision(cluster& init_cluster)
+{
+	const pair<int, int> means = new_means(init_cluster);
+
+	if (means.first == -1 || means.second == -1) // cluster should not be divided anymore
+	{
+		new_clusters.push_back(init_cluster);
+	}
+	else // recursively divide cluster
+	{
+		pair<cluster, cluster> divided_clusters = k_means_clustering(init_cluster);
+
+		// means became new centroids for new clusters
+		points[init_cluster[0]].is_centroid = false;
+		points[init_cluster[means.first]].is_centroid = true;
+		points[init_cluster[means.second]].is_centroid = true;
+
+		// recursion
+		recursive_cluster_subdivision(divided_clusters.first);
+		recursive_cluster_subdivision(divided_clusters.second);
+	}
+}
+
+/** @brief Calls subdivision on all clusters
+*/
 void main_cluster_subdivision()
 {
 	for (size_t i = 0; i < clusters.size(); i++)
 	{
-		
+		recursive_cluster_subdivision(clusters[i]);
 	}
+}
+
+/** @brief Exports centroid from new_clusters. Exported file has same header and format as input file.
+*/
+void export_point_cloud(const string& output_file_name)
+{
+	ofstream output_file(output_file_name);
+
+	cout << endl << "Exporting reduced point cloud to file: " + output_file_name << endl;
+
+	// write header
+	output_file << "ply"<< endl << "format ascii 1.0" << endl << "element vertex " << new_clusters.size() << endl;
+	output_file << "property float x" << endl << "property float y" << endl << "property float z" << endl;
+	output_file << "property uchar red" << endl << "property uchar green" << endl << "property uchar blue" << endl;
+	output_file << "property float nx" << endl << "property float ny" << endl << "property float nz" << endl;
+
+	for (size_t i = 0; i < new_clusters.size(); i++)
+	{
+		string line; // for simple buffering
+
+		for (size_t j = 0; j < 9; j++)
+		{
+			// goes through all clusters, takes points from index 0 (centroid of that cluster) and writes its array elements (coordinates, color and normal vectors)
+			line += points[new_clusters[i][0]][j];
+		}
+
+		output_file << line << endl;
+	}
+
+	cout << "Reduced point cloud successfully exported to file: " << output_file_name << endl << endl;
+	cout << "Point cloud was reduced from " << points.size() << " points to " << new_clusters.size() << " points." << endl;
+	cout << "That is " << new_clusters.size() / points.size() * 100 << "%.";
 }
 
 /** @brief Entry point. Arguments should contain filename as string, Space Interval Threshold (DT) as float 
@@ -393,26 +466,38 @@ void main_cluster_subdivision()
 */
 int main(const int argc, char* argv[])
 {
-	string file_name = process_args(argc, argv);
+	string input_file_name = process_args(argc, argv);
 
 	try
 	{
-		import_point_cloud(file_name);
+		import_point_cloud(input_file_name);
 	}
 	catch (const std::exception&)
 	{
-		cout << endl << endl << "Error! File " + file_name + " was not successfully imported or parsed!";
+		cout << endl << endl << "Error! File " + input_file_name + " was not successfully imported or parsed!";
 		return -1;
 	}
 
-	build_tree();	
+	build_tree();
 
 	cluster_initialization();
 
 	//const vector<int> boundary_clusters = boundary_cluster_detection();
 	//boundary_cluster_subdivision(boundary_clusters);
 
-	main_cluster_subdivision();
+	//main_cluster_subdivision();
+
+	const string output_file_name = input_file_name.substr(0, input_file_name.size() - 4) + "_REDUCED" + file_name_extention;
+
+	try
+	{
+		export_point_cloud(output_file_name);
+	}
+	catch (const std::exception&)
+	{
+		cout << endl << endl << "Error! Could not write to output file (" + output_file_name + ").";
+		return -1;
+	}
 
 	return 0;
 }
