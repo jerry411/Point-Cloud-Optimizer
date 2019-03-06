@@ -47,7 +47,7 @@ property float nz
 end_header
 
 */
-void import_point_cloud(string& file_name)
+void import_point_cloud(const string& file_name)
 {
 	ifstream in_file(file_name);
 
@@ -129,7 +129,7 @@ void cluster_initialization()
 
 /** @brief Decides whether value of specific user variable is valid.
 */
-bool user_var_value_is_valid(const float value, const user_def_variables user_var)
+bool user_var_value_is_valid(const float value, const user_def_variables& user_var)
 {
 	switch (user_var)
 	{
@@ -146,7 +146,7 @@ bool user_var_value_is_valid(const float value, const user_def_variables user_va
 
 /** @brief Returns name of specific user variable (Space Interval Threshold (DT) or Normal Vector Deviation Threshold (NT)).
 */
-string text_for_user_variable(const user_def_variables user_var)
+string text_for_user_variable(const user_def_variables& user_var)
 {
 	switch (user_var)
 	{
@@ -163,7 +163,7 @@ string text_for_user_variable(const user_def_variables user_var)
 
 /** @brief Returns default value of specific user variable (Space Interval Threshold (DT) or Normal Vector Deviation Threshold (NT)).
 */
-float default_for_user_variable(const user_def_variables user_var)
+float default_for_user_variable(const user_def_variables& user_var)
 {
 	switch (user_var)
 	{
@@ -180,7 +180,7 @@ float default_for_user_variable(const user_def_variables user_var)
 
 /** @brief Processes manual input of float value for user variables to console. If values are not valid, default values are used.
 */
-float manual_float_input(const user_def_variables user_var)
+float manual_float_input(const user_def_variables& user_var)
 {
 	const string text = text_for_user_variable(user_var);
 	const float default_value = default_for_user_variable(user_var);
@@ -235,7 +235,7 @@ float manual_float_input(const user_def_variables user_var)
 
 /** @brief Processes input float arguments. If there are no arguments or values are invalid, used is asked to provide them to console.
 */
-float process_float_arg(const int argc, char** argv, const int index, const user_def_variables user_var)
+float process_float_arg(const int argc, char** argv, const int index, const user_def_variables& user_var)
 {
 	if (argc > index)
 	{
@@ -323,11 +323,29 @@ string process_args(const int argc, char* argv[])
 	return file_name;
 }
 
-/*vector<int> boundary_cluster_detection()
+/** @brief Cluster is boudary if there are less less than 6 centroids in vicinity of sqrt(3) * space_interval_dt.
+*/
+bool is_boundary_cluster (const cluster& init_cluster)
 {
-	
+	point& centroid = points[init_cluster[0]]; // index to centroid is at index 0 in cluster
+
+	vector<int> neighbours_indices = tree.knn_search(centroid, static_cast<int>(sqrt(3) * space_interval_dt));
+
+	int number_of_centroid = 0;
+
+	for (size_t i = 0; i < neighbours_indices.size(); i++)
+	{
+		if (points[neighbours_indices[i]].is_centroid)
+		{
+			number_of_centroid++;
+		}
+	}
+
+	// there is always one centroid from initial cluster - that one does not count to neighbouring centroids count but it is always returned from knn_search
+	return number_of_centroid < 7;
 }
 
+/*
 void boundary_cluster_subdivision(const vector<int>& boundary_clusters)
 {
 	
@@ -335,7 +353,7 @@ void boundary_cluster_subdivision(const vector<int>& boundary_clusters)
 
 /** @brief Standard deviation of normal vectors of 2 points. Normal vectors are expected to be normalized, therefore return value is between 0 and 1.
 */
-float standard_deviation(point& p1, point& p2)
+float standard_deviation(const point& p1, const point& p2)
 {
 	float sum = 0;
 
@@ -349,7 +367,7 @@ float standard_deviation(point& p1, point& p2)
  *	If this deviation is larger than Normal Vector Deviation Threshold (NT), cluster should be divided.
  *	Returns pair (-1, -1) as indicator if cluster should not be divided.
 */
-pair<int, int> new_means(cluster& cluster)
+pair<int, int> new_means(const cluster& cluster)
 {
 	if (cluster.size() <= 1) // cluster with 1 member should not be divided
 	{
@@ -368,8 +386,8 @@ pair<int, int> new_means(cluster& cluster)
 			if (local_deviation > max_deviation)
 			{
 				max_deviation = local_deviation;
-				max_index1 = i;
-				max_index2 = j;
+				max_index1 = static_cast<int>(i);
+				max_index2 = static_cast<int>(j);
 			}
 		}
 	}
@@ -395,7 +413,7 @@ vector<cluster> new_clusters;
 
 /** @brief Decides whether cluster should be divided. If yes, it is recursively divided using k-means. If no, it is added to new_clusters.
 */
-void recursive_cluster_subdivision(cluster& init_cluster)
+void recursive_cluster_subdivision(const cluster& init_cluster)
 {
 	const pair<int, int> means = new_means(init_cluster);
 
@@ -449,7 +467,7 @@ void export_point_cloud(const string& output_file_name)
 		for (size_t j = 0; j < 9; j++)
 		{
 			// goes through all clusters, takes points from index 0 (centroid of that cluster) and writes its array elements (coordinates, color and normal vectors)
-			line += points[new_clusters[i][0]][j];
+			line += to_string(points[new_clusters[i][0]][j]);
 		}
 
 		output_file << line << endl;
