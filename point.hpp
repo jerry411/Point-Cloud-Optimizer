@@ -9,7 +9,7 @@ public:
 	static const int dimension = 3;
 
 	bool is_centroid = false;
-	bool is_marked = false;;
+	bool is_marked = false;
 
 	// default constructor
 	point() : array() {}

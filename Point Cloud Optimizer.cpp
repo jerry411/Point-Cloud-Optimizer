@@ -10,7 +10,7 @@
 using namespace std;
 using namespace kdt;
 
-typedef vector<int> cluster; //TODO: int to size_t
+typedef vector<int> cluster;
 
 vector<point> points; // points of point cloud themselves (there are expected to be millions of points == tens of millions of bytes)
 vector<cluster> clusters; // vector of clusters, where cluster holds indices to its members (first index refers to cluster centroid)
@@ -404,6 +404,9 @@ pair<int, int> new_means(const cluster& cluster)
 
 pair<cluster, cluster> k_means_clustering(const cluster& init_cluster)
 {
+
+
+
 	//************
 	cluster temp1, temp2;
 	return { temp1, temp2 };
