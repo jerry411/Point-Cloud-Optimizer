@@ -168,6 +168,14 @@ namespace kdt
 			return indices;
 		}
 
+		static double distance(const PointT& p, const PointT& q)
+		{
+			double dist = 0;
+			for (size_t i = 0; i < PointT::dimension; i++)
+				dist += (p[i] - q[i]) * (p[i] - q[i]);
+			return sqrt(dist);
+		}
+
 	private:
 
 		/** @brief k-d tree node.
@@ -309,14 +317,6 @@ namespace kdt
 
 			if (node1)
 				validate_recursive(node1, depth + 1);
-		}
-
-		static double distance(const PointT& p, const PointT& q)
-		{
-			double dist = 0;
-			for (size_t i = 0; i < PointT::dimension; i++)
-				dist += (p[i] - q[i]) * (p[i] - q[i]);
-			return sqrt(dist);
 		}
 
 		/** @brief Searches the nearest neighbor recursively.

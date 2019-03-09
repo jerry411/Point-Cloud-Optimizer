@@ -402,13 +402,27 @@ pair<int, int> new_means(const cluster& cluster)
 	}
 }
 
-pair<cluster, cluster> k_means_clustering(const cluster& init_cluster)
+pair<cluster, cluster> k_means_clustering(const cluster& init_cluster, const pair<int, int>& means)
 {
-
-
-
-	//************
 	cluster temp1, temp2;
+
+	temp1.push_back(init_cluster[means.first]);
+	temp2.push_back(init_cluster[means.second]);
+
+	for (size_t i = 0; i < init_cluster.size(); i++)
+	{
+		if (static_cast<int>(i) == means.first || static_cast<int>(i) == means.second)
+			continue;
+
+		const double distance_to_mean1 = kd_tree<point>::distance(points[init_cluster[i]], points[init_cluster[means.first]]);
+		const double distance_to_mean2 = kd_tree<point>::distance(points[init_cluster[i]], points[init_cluster[means.second]]);
+
+		if (distance_to_mean1 < distance_to_mean2)
+			temp1.push_back(init_cluster[i]);
+		else
+			temp2.push_back(init_cluster[i]);
+	}
+
 	return { temp1, temp2 };
 }
 
@@ -426,7 +440,7 @@ void recursive_cluster_subdivision(const cluster& init_cluster)
 	}
 	else // recursively divide cluster
 	{
-		pair<cluster, cluster> divided_clusters = k_means_clustering(init_cluster);
+		const pair<cluster, cluster> divided_clusters = k_means_clustering(init_cluster, means);
 
 		// means became new centroids for new clusters
 		points[init_cluster[0]].is_centroid = false;
