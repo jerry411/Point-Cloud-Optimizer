@@ -1,8 +1,6 @@
 ﻿#pragma once
 
-#include <array>
-
-class point : public std::array<float, 9>
+class point
 {
 public:
 	// dimension of space / "k" of k-d tree (KDTree class accesses this member)
@@ -11,30 +9,39 @@ public:
 	bool is_centroid = false;
 	bool is_marked = false;
 
-	// default constructor
-	point() : array() {}
+	float data[9]{};
 
 	// X/Y/Z world coordinates, R/G/B colors, NX/NY/NZ coordinates of normal vectors
-	point(const float x, const float y, const float z, const float r, const float g, const float b, const float nx, const float ny, const float nz) : array()
+	point(const float x, const float y, const float z, const float r, const float g, const float b, const float nx, const float ny, const float nz)
 	{
-		(*this)[0] = x;
-		(*this)[1] = y;
-		(*this)[2] = z;
+		data[0] = x;
+		data[1] = y;
+		data[2] = z;
 
-		(*this)[3] = r;
-		(*this)[4] = g;
-		(*this)[5] = b;
+		data[3] = r;
+		data[4] = g;
+		data[5] = b;
 
-		(*this)[6] = nx;
-		(*this)[7] = ny;
-		(*this)[8] = nz;
+		data[6] = nx;
+		data[7] = ny;
+		data[8] = nz;
 	}
 
-	explicit point(const float arr[9]) : array()
+	explicit point(const float array[9])
 	{
 		for (size_t i = 0; i < 9; i++)
 		{
-			(*this)[i] = arr[i];
+			data[i] = array[i];
 		}
+	}
+
+	double distance(const point& other)
+	{
+		double distance = 0;
+
+		for (size_t i = 0; i < 3; i++)
+			distance += (data[i] - other.data[i]) * (data[i] - other.data[i]);
+
+		return sqrt(distance);
 	}
 };

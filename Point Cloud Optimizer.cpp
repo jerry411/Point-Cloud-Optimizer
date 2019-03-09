@@ -4,19 +4,25 @@
 #include <string>
 
 #include "point.hpp"
-#include "kdtree.hpp"
+//#include "kdtree.hpp"
 #include <sstream>
 #include <iomanip>
 #include "rply.h"
+#include "nanoflann.hpp"
+#include "point_cloud.hpp"
 
 using namespace std;
-using namespace kdt;
+//using namespace kdt;
+using namespace nanoflann;
 
 typedef vector<int> cluster;
+typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, 3> my_tree;
 
-vector<point> points; // points of point cloud themselves (there are expected to be millions of points == tens of millions of bytes)
+point_cloud<float> cloud;
+
+//vector<point> points; // points of point cloud themselves (there are expected to be millions of points == tens of millions of bytes)
 vector<cluster> clusters; // vector of clusters, where cluster holds indices to its members (first index refers to cluster centroid)
-kd_tree<point> tree; // K-D tree holding indices from "points" vector
+//kd_tree<point> tree; // K-D tree holding indices from "points" vector
 
 // Space Interval Threshold (DT) - largest distance from cluster centroid to any cluster member
 float space_interval_dt;
@@ -61,7 +67,7 @@ static int vertex_cb(const p_ply_argument argument)
 	if (position == 9)
 	{
 		position = 0;
-		points.emplace_back(buffer);
+		cloud.points.emplace_back(buffer);
 	}
 
 	return 1;
@@ -89,7 +95,7 @@ void import_point_cloud(const string& file_name)
 	ply_set_read_cb(ply, "vertex", "ny", vertex_cb, nullptr, 0);
 	ply_set_read_cb(ply, "vertex", "nz", vertex_cb, nullptr, 1);
 
-	points.reserve(number_of_elements);
+	cloud.points.reserve(number_of_elements);
 
 	if (!ply_read(ply))
 		throw exception();
@@ -105,26 +111,27 @@ void build_tree()
 {
 	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
 
-	tree = kd_tree<point>(points);
+	//tree = kd_tree<point>(points);
 }
+
 
 /** @brief Creates initial clusters. If point is not marked, it becames centroid of new cluster. 
  *	This new cluster contains non-marked neighbours of centroid whose distance is less than or equal to Space Interval Threshold (DT).
 */
-void cluster_initialization()
+void cluster_initialization(my_tree& my_tree)
 {
 	cout << "Initializing clusters." << endl;
 
-	for (size_t i = 0; i < points.size(); i++)
+	for (size_t i = 0; i < cloud.points.size(); i++)
 	{
-		point& selected = points[i];
+		//point& selected = points[i];
 
-		if (!points[i].is_marked)
+		if (!cloud.points[i].is_marked)
 		{
-			selected.is_centroid = true;
+			cloud.points[i].is_centroid = true;
 
 			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
-			vector<int> neighbours_indices = tree.knn_search(points[i], static_cast<int>(space_interval_dt));
+			vector<int> neighbours_indices /*= tree.knn_search(points[i], static_cast<int>(space_interval_dt))*/;
 
 			// create new cluster
 			clusters.resize(clusters.size() + 1);
@@ -136,10 +143,10 @@ void cluster_initialization()
 			{
 				int point_index = neighbours_indices[j];
 
-				if (!points[point_index].is_marked) // do not copy indices to marked points to cluster
+				if (!cloud.points[point_index].is_marked) // do not copy indices to marked points to cluster
 				{
 					current_cluster.push_back(point_index);
-					points[point_index].is_marked = true;
+					cloud.points[point_index].is_marked = true;
 				}
 			}
 		}
@@ -344,17 +351,26 @@ string process_args(const int argc, char* argv[])
 
 /** @brief Cluster is boudary if there are less less than 6 centroids in vicinity of sqrt(3) * space_interval_dt.
 */
-bool is_boundary_cluster (const cluster& init_cluster)
+bool is_boundary_cluster (const cluster& init_cluster, const my_tree& my_tree)
 {
-	point& centroid = points[init_cluster[0]]; // index to centroid is at index 0 in cluster
+	//point& centroid_point = points[init_cluster[0]]; // index to centroid is at index 0 in cluster
 
-	vector<int> neighbours_indices = tree.knn_search(centroid, static_cast<int>(sqrt(3) * space_interval_dt));
+	float* centroid = cloud.points[init_cluster[0]].data; // index to centroid is at index 0 in cluster
+
+	const float radius = static_cast<float>(sqrt(3) * space_interval_dt);
+
+	vector<std::pair<size_t, float>> indices_dists;
+
+	RadiusResultSet<float, size_t> result_set(radius, indices_dists);
+	my_tree.findNeighbors(result_set, centroid, nanoflann::SearchParams());
+
+	//vector<int> neighbours_indices = tree.knn_search(centroid, static_cast<int>(sqrt(3) * space_interval_dt));
 
 	int number_of_centroid = 0;
 
-	for (size_t i = 0; i < neighbours_indices.size(); i++)
+	for (size_t i = 0; i < indices_dists.size(); i++)
 	{
-		if (points[neighbours_indices[i]].is_centroid)
+		if (cloud.points[indices_dists[i].first].is_centroid)
 		{
 			number_of_centroid++;
 		}
@@ -377,7 +393,7 @@ float standard_deviation(const point& p1, const point& p2)
 	float sum = 0;
 
 	for (size_t i = 0; i < 3; i++)
-		sum += pow(p1[i] - p2[i], 2);
+		sum += pow(p1.data[i] - p2.data[i], 2);
 
 	return sqrt((sum) / 2);
 }
@@ -400,7 +416,7 @@ pair<int, int> new_means(const cluster& cluster)
 	{
 		for (size_t j = i; j < cluster.size(); j++)
 		{
-			const float local_deviation = standard_deviation(points[cluster[i]], points[cluster[j]]);
+			const float local_deviation = standard_deviation(cloud.points[cluster[i]], cloud.points[cluster[j]]);
 
 			if (local_deviation > max_deviation)
 			{
@@ -433,8 +449,8 @@ pair<cluster, cluster> k_means_clustering(const cluster& init_cluster, const pai
 		if (static_cast<int>(i) == means.first || static_cast<int>(i) == means.second)
 			continue;
 
-		const double distance_to_mean1 = kd_tree<point>::distance(points[init_cluster[i]], points[init_cluster[means.first]]);
-		const double distance_to_mean2 = kd_tree<point>::distance(points[init_cluster[i]], points[init_cluster[means.second]]);
+		const double distance_to_mean1 = cloud.points[init_cluster[i]].distance(cloud.points[init_cluster[means.first]]);
+		const double distance_to_mean2 = cloud.points[init_cluster[i]].distance(cloud.points[init_cluster[means.second]]);
 
 		if (distance_to_mean1 < distance_to_mean2)
 			temp1.push_back(init_cluster[i]);
@@ -462,9 +478,9 @@ void recursive_cluster_subdivision(const cluster& init_cluster)
 		const pair<cluster, cluster> divided_clusters = k_means_clustering(init_cluster, means);
 
 		// means became new centroids for new clusters
-		points[init_cluster[0]].is_centroid = false;
-		points[init_cluster[means.first]].is_centroid = true;
-		points[init_cluster[means.second]].is_centroid = true;
+		cloud.points[init_cluster[0]].is_centroid = false;
+		cloud.points[init_cluster[means.first]].is_centroid = true;
+		cloud.points[init_cluster[means.second]].is_centroid = true;
 
 		// recursion
 		recursive_cluster_subdivision(divided_clusters.first);
@@ -507,7 +523,7 @@ void export_point_cloud(const string& output_file_name)
 		{
 			// goes through all clusters, takes points from index 0 (centroid of that cluster) and writes its array elements (coordinates, color and normal vectors)
 
-			line_stream << std::setprecision(7) << points[new_clusters[i][0]][j];
+			line_stream << std::setprecision(7) << cloud.points[new_clusters[i][0]].data[j];
 
 			if (j < 8)
 				line_stream << ' ';
@@ -517,8 +533,8 @@ void export_point_cloud(const string& output_file_name)
 	}
 
 	cout << "Reduced point cloud successfully exported to file: " << output_file_name << endl << endl;
-	cout << "Point cloud was reduced from " << points.size() << " points to " << new_clusters.size() << " points." << endl;
-	cout << "That is " << new_clusters.size() / static_cast<float>(points.size()) * 100 << "%.";
+	cout << "Point cloud was reduced from " << cloud.points.size() << " points to " << new_clusters.size() << " points." << endl;
+	cout << "That is " << new_clusters.size() / static_cast<float>(cloud.points.size()) * 100 << "%.";
 }
 
 /** @brief Entry point. Arguments should contain filename as string, Space Interval Threshold (DT) as float 
@@ -539,9 +555,11 @@ int main(const int argc, char* argv[])
 		return -1;
 	}
 
-	build_tree();
+	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
+	my_tree new_tree(3, cloud, KDTreeSingleIndexAdaptorParams(50));
+	new_tree.buildIndex();
 
-	cluster_initialization();
+	cluster_initialization(new_tree);
 
 	//const vector<int> boundary_clusters = boundary_cluster_detection();
 	//boundary_cluster_subdivision(boundary_clusters);

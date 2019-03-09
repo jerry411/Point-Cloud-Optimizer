@@ -23,9 +23,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="kdtree.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="point.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -33,6 +30,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="rplyfile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="nanoflann.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="point_cloud.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -163,8 +163,9 @@
     <ClCompile Include="rply.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="kdtree.hpp" />
+    <ClInclude Include="nanoflann.hpp" />
     <ClInclude Include="point.hpp" />
+    <ClInclude Include="point_cloud.hpp" />
     <ClInclude Include="rply.h" />
     <ClInclude Include="rplyfile.h" />
   </ItemGroup>
