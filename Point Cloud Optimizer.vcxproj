@@ -160,11 +160,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Point Cloud Optimizer.cpp" />
-    <ClCompile Include="sample.cpp" />
+    <ClCompile Include="rply.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kdtree.hpp" />
     <ClInclude Include="point.hpp" />
+    <ClInclude Include="rply.h" />
+    <ClInclude Include="rplyfile.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

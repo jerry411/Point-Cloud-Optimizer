@@ -6,6 +6,8 @@
 #include "point.hpp"
 #include "kdtree.hpp"
 #include <sstream>
+#include <iomanip>
+#include "rply.h"
 
 using namespace std;
 using namespace kdt;
@@ -47,35 +49,52 @@ property float nz
 end_header
 
 */
+
+int position = 0;
+float buffer[9];
+
+static int vertex_cb(const p_ply_argument argument) 
+{
+	buffer[position] = static_cast<float>(ply_get_argument_value(argument));
+	position++;
+
+	if (position == 9)
+	{
+		position = 0;
+		points.emplace_back(buffer);
+	}
+
+	return 1;
+}
+
 void import_point_cloud(const string& file_name)
 {
-	ifstream in_file(file_name);
-
 	cout << endl << "Importing and parsing file: " + file_name << endl;
 
-	// process first part of header
-	string line, token;
-	for (size_t i = 0; i < 3; i++)
-		getline(in_file, line);
+	p_ply ply = ply_open(file_name.c_str(), nullptr, 0, nullptr);
 
-	// process number of vertices
-	stringstream line_ss(line);
-	for (size_t i = 0; i < 3; i++)
-		getline(line_ss, token, ' ');
+	if (!ply) 
+		throw exception();
 
-	points = vector<point>();
+	if (!ply_read_header(ply)) 
+		throw exception();
 
-	// process rest of header
-	while (in_file >> line)
-		if (line == "end_header")
-			break;
+	const long number_of_elements = ply_set_read_cb(ply, "vertex", "x", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "y", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "z", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "red", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "green", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "blue", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "nx", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "ny", vertex_cb, nullptr, 0);
+	ply_set_read_cb(ply, "vertex", "nz", vertex_cb, nullptr, 1);
 
-	// process actual vertices
-	float x, y, z, r, g, b, nx, ny, nz;
-	while (in_file >> x >> y >> z >> r >> g >> b >> nx >> ny >> nz)
-	{
-		points.emplace_back(x, y, z, r, g, b, nx, ny, nz);
-	}
+	points.reserve(number_of_elements);
+
+	if (!ply_read(ply))
+		throw exception();
+	
+	ply_close(ply);
 
 	cout << "File " + file_name + " successfully imported and parsed" << endl << endl;
 }
@@ -87,8 +106,6 @@ void build_tree()
 	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
 
 	tree = kd_tree<point>(points);
-
-	cout << "Finished building K-D tree." << endl;
 }
 
 /** @brief Creates initial clusters. If point is not marked, it becames centroid of new cluster. 
@@ -96,6 +113,8 @@ void build_tree()
 */
 void cluster_initialization()
 {
+	cout << "Initializing clusters." << endl;
+
 	for (size_t i = 0; i < points.size(); i++)
 	{
 		point& selected = points[i];
@@ -457,6 +476,8 @@ void recursive_cluster_subdivision(const cluster& init_cluster)
 */
 void main_cluster_subdivision()
 {
+	cout << "Dividing clusters." << endl;
+
 	for (size_t i = 0; i < clusters.size(); i++)
 	{
 		recursive_cluster_subdivision(clusters[i]);
@@ -476,23 +497,28 @@ void export_point_cloud(const string& output_file_name)
 	output_file << "property float x" << endl << "property float y" << endl << "property float z" << endl;
 	output_file << "property uchar red" << endl << "property uchar green" << endl << "property uchar blue" << endl;
 	output_file << "property float nx" << endl << "property float ny" << endl << "property float nz" << endl;
+	output_file << "end_header" << endl;
 
 	for (size_t i = 0; i < new_clusters.size(); i++)
 	{
-		string line; // for simple buffering
+		stringstream line_stream; // for simple buffering
 
 		for (size_t j = 0; j < 9; j++)
 		{
 			// goes through all clusters, takes points from index 0 (centroid of that cluster) and writes its array elements (coordinates, color and normal vectors)
-			line += to_string(points[new_clusters[i][0]][j]);
+
+			line_stream << std::setprecision(7) << points[new_clusters[i][0]][j];
+
+			if (j < 8)
+				line_stream << ' ';
 		}
 
-		output_file << line << endl;
+		output_file << line_stream.rdbuf() << endl;
 	}
 
 	cout << "Reduced point cloud successfully exported to file: " << output_file_name << endl << endl;
 	cout << "Point cloud was reduced from " << points.size() << " points to " << new_clusters.size() << " points." << endl;
-	cout << "That is " << new_clusters.size() / points.size() * 100 << "%.";
+	cout << "That is " << new_clusters.size() / static_cast<float>(points.size()) * 100 << "%.";
 }
 
 /** @brief Entry point. Arguments should contain filename as string, Space Interval Threshold (DT) as float 
@@ -520,7 +546,7 @@ int main(const int argc, char* argv[])
 	//const vector<int> boundary_clusters = boundary_cluster_detection();
 	//boundary_cluster_subdivision(boundary_clusters);
 
-	//main_cluster_subdivision();
+	main_cluster_subdivision();
 
 	const string output_file_name = input_file_name.substr(0, input_file_name.size() - 4) + "_REDUCED" + file_name_extention;
 

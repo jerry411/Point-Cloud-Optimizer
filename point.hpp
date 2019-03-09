@@ -29,4 +29,12 @@ public:
 		(*this)[7] = ny;
 		(*this)[8] = nz;
 	}
+
+	explicit point(const float arr[9]) : array()
+	{
+		for (size_t i = 0; i < 9; i++)
+		{
+			(*this)[i] = arr[i];
+		}
+	}
 };
