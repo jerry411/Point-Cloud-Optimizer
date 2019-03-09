@@ -15,8 +15,9 @@ using namespace nanoflann;
 typedef vector<size_t> cluster;
 typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, 3> tree; // K-D tree holding indices from "points" vector
 
-point_cloud<float> cloud;
-vector<cluster> clusters; // cluster holds indices to its members (index 0 refers to cluster centroid)
+point_cloud<float> cloud; // point cloud itself holding actual data to points
+vector<cluster> initial_clusters; // cluster holds indices to its members (index 0 refers to cluster centroid)
+vector<cluster> new_clusters; // used as final storage of clusters after subdivision of initial clusters
 
 // Space Interval Threshold (DT) - largest distance from cluster centroid to any cluster member
 float space_interval_dt;
@@ -50,7 +51,7 @@ static int vertex_cb(const p_ply_argument argument)
 	return 1;
 }
 
-/** @brief Parses point cloud from external ASCII .ply file.
+/** @brief Uses RPly to parse point cloud from external ASCII .ply file.
  *File is expected to comply .fly standards with this specific structure/header:
 
 ply
@@ -118,8 +119,8 @@ void cluster_initialization(tree& my_tree)
 			my_tree.radiusSearch(centroid, radius, indices_dists, SearchParams());
 
 			// create new cluster
-			clusters.resize(clusters.size() + 1);
-			vector<size_t>& current_cluster = clusters[clusters.size() - 1];
+			initial_clusters.resize(initial_clusters.size() + 1);
+			vector<size_t>& current_cluster = initial_clusters[initial_clusters.size() - 1];
 			current_cluster.reserve(indices_dists.size());
 
 			// fill the new cluster
@@ -413,6 +414,8 @@ pair<int, int> new_means(const cluster& cluster)
 	}
 }
 
+/** @brief Simplified k-means clustering algorithm with k=2 and non-moving predetermined centroid (1-iteration)
+*/
 pair<cluster, cluster> k_means_clustering(const cluster& init_cluster, const pair<int, int>& means)
 {
 	cluster temp1, temp2;
@@ -436,8 +439,6 @@ pair<cluster, cluster> k_means_clustering(const cluster& init_cluster, const pai
 
 	return { temp1, temp2 };
 }
-
-vector<cluster> new_clusters;
 
 /** @brief Decides whether cluster should be divided. If yes, it is recursively divided using k-means. If no, it is added to new_clusters.
 */
@@ -470,9 +471,9 @@ void main_cluster_subdivision()
 {
 	cout << "Dividing clusters." << endl;
 
-	for (size_t i = 0; i < clusters.size(); i++)
+	for (size_t i = 0; i < initial_clusters.size(); i++)
 	{
-		recursive_cluster_subdivision(clusters[i]);
+		recursive_cluster_subdivision(initial_clusters[i]);
 	}
 }
 
