@@ -71,7 +71,7 @@ void import_point_cloud(const string& file_name)
 {
 	cout << endl << "Importing and parsing file: " + file_name << endl;
 
-	p_ply ply = ply_open(file_name.c_str(), nullptr, 0, nullptr);
+	const p_ply ply = ply_open(file_name.c_str(), nullptr, 0, nullptr);
 
 	if (!ply) 
 		throw exception();
