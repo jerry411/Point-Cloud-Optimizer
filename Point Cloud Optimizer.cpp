@@ -507,7 +507,6 @@ void export_point_cloud(const string& output_file_name)
 		output_file << line_stream.rdbuf() << endl;
 	}
 
-	cout.imbue(locale(""));
 	cout << endl << endl << "Point cloud was reduced from " << cloud.points.size() << " points to " << new_clusters.size() << " points." << endl;
 	cout << "That is " << new_clusters.size() / static_cast<float>(cloud.points.size()) * 100 << "%.";
 }
