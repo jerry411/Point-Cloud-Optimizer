@@ -2,7 +2,6 @@
 #include <fstream>
 #include <vector>
 #include <string>
-
 #include "point.hpp"
 #include <sstream>
 #include <iomanip>
@@ -13,11 +12,11 @@
 using namespace std;
 using namespace nanoflann;
 
-typedef vector<int> cluster;
+typedef vector<size_t> cluster;
 typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, 3> tree; // K-D tree holding indices from "points" vector
 
 point_cloud<float> cloud;
-vector<cluster> clusters; // vector of clusters, where cluster holds indices to its members (index 0 refers to cluster centroid)
+vector<cluster> clusters; // cluster holds indices to its members (index 0 refers to cluster centroid)
 
 // Space Interval Threshold (DT) - largest distance from cluster centroid to any cluster member
 float space_interval_dt;
@@ -32,9 +31,28 @@ enum user_def_variables { space_interval_var, vector_deviation_var };
 string file_name_extention(".ply");
 string default_file_name("PointCloud" + file_name_extention);
 
-/** @brief Parses point cloud from external ASCII .ply file. 
+
+int position = 0;
+float buffer[9];
+/** @brief Callback for parse. This method is called for every element found
+*/
+static int vertex_cb(const p_ply_argument argument)
+{
+	buffer[position] = static_cast<float>(ply_get_argument_value(argument));
+	position++;
+
+	if (position == 9)
+	{
+		position = 0;
+		cloud.points.emplace_back(buffer);
+	}
+
+	return 1;
+}
+
+/** @brief Parses point cloud from external ASCII .ply file.
  *File is expected to comply .fly standards with this specific structure/header:
- 
+
 ply
 format ascii 1.0
 element vertex <number of vertices>
@@ -50,24 +68,6 @@ property float nz
 end_header
 
 */
-
-int position = 0;
-float buffer[9];
-
-static int vertex_cb(const p_ply_argument argument)
-{
-	buffer[position] = static_cast<float>(ply_get_argument_value(argument));
-	position++;
-
-	if (position == 9)
-	{
-		position = 0;
-		cloud.points.emplace_back(buffer);
-	}
-
-	return 1;
-}
-
 void import_point_cloud(const string& file_name)
 {
 	cout << endl << "Importing and parsing file: " + file_name << endl;
@@ -96,19 +96,7 @@ void import_point_cloud(const string& file_name)
 		throw exception();
 	
 	ply_close(ply);
-
-	cout << "File " + file_name + " successfully imported and parsed" << endl << endl;
 }
-
-/** @brief Builds k-d tree from points
-*/
-void build_tree()
-{
-	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
-
-	//tree = kd_tree<point>(points);
-}
-
 
 /** @brief Creates initial clusters. If point is not marked, it becames centroid of new cluster. 
  *	This new cluster contains non-marked neighbours of centroid whose distance is less than or equal to Space Interval Threshold (DT).
@@ -119,24 +107,25 @@ void cluster_initialization(tree& my_tree)
 
 	for (size_t i = 0; i < cloud.points.size(); i++)
 	{
-		//point& selected = points[i];
-
 		if (!cloud.points[i].is_marked)
 		{
 			cloud.points[i].is_centroid = true;
 
-			// index of centroid of a cluster is first in vector (always returned as first from knn_search)
-			vector<int> neighbours_indices /*= tree.knn_search(points[i], static_cast<int>(space_interval_dt))*/;
+			float* centroid = cloud.points[i].data; // index to centroid is at index 0 in cluster
+			const float radius = space_interval_dt;
+			vector<std::pair<size_t, float>> indices_dists;
+
+			my_tree.radiusSearch(centroid, radius, indices_dists, SearchParams());
 
 			// create new cluster
 			clusters.resize(clusters.size() + 1);
-			vector<int>& current_cluster = clusters[clusters.size() - 1];
-			current_cluster.reserve(neighbours_indices.size());
+			vector<size_t>& current_cluster = clusters[clusters.size() - 1];
+			current_cluster.reserve(indices_dists.size());
 
 			// fill the new cluster
-			for (size_t j = 0; j < neighbours_indices.size(); j++)
+			for (size_t j = 0; j < indices_dists.size(); j++)
 			{
-				int point_index = neighbours_indices[j];
+				size_t point_index = indices_dists[j].first;
 
 				if (!cloud.points[point_index].is_marked) // do not copy indices to marked points to cluster
 				{
@@ -349,13 +338,10 @@ string process_args(const int argc, char* argv[])
 bool is_boundary_cluster (const cluster& init_cluster, const tree& my_tree)
 {
 	float* centroid = cloud.points[init_cluster[0]].data; // index to centroid is at index 0 in cluster
-
 	const float radius = static_cast<float>(sqrt(3) * space_interval_dt);
-
 	vector<std::pair<size_t, float>> indices_dists;
 
-	RadiusResultSet<float, size_t> result_set(radius, indices_dists);
-	my_tree.findNeighbors(result_set, centroid, nanoflann::SearchParams());
+	my_tree.radiusSearch(centroid, radius, indices_dists, SearchParams());
 
 	int number_of_centroid = 0;
 
@@ -395,10 +381,9 @@ float standard_deviation(const point& p1, const point& p2)
 */
 pair<int, int> new_means(const cluster& cluster)
 {
-	if (cluster.size() <= 1) // cluster with 1 member should not be divided
-	{
+	// cluster with 1 member should not be divided; cluster division can be skipped if vector_deviation_nt is too close to 1
+	if (cluster.size() <= 1 || vector_deviation_nt > 0.99999)
 		return {-1, -1};
-	}
 
 	float max_deviation = 0;
 	int max_index1, max_index2;
@@ -497,7 +482,7 @@ void export_point_cloud(const string& output_file_name)
 {
 	ofstream output_file(output_file_name);
 
-	cout << endl << "Exporting reduced point cloud to file: " + output_file_name << endl;
+	cout << "Exporting reduced point cloud to file: " + output_file_name << endl;
 
 	// write header
 	output_file << "ply"<< endl << "format ascii 1.0" << endl << "element vertex " << new_clusters.size() << endl;
@@ -508,12 +493,11 @@ void export_point_cloud(const string& output_file_name)
 
 	for (size_t i = 0; i < new_clusters.size(); i++)
 	{
-		stringstream line_stream; // for simple buffering
+		stringstream line_stream; // for simple buffering		
 
 		for (size_t j = 0; j < 9; j++)
 		{
 			// goes through all clusters, takes points from index 0 (centroid of that cluster) and writes its array elements (coordinates, color and normal vectors)
-
 			line_stream << std::setprecision(7) << cloud.points[new_clusters[i][0]].data[j];
 
 			if (j < 8)
@@ -523,8 +507,8 @@ void export_point_cloud(const string& output_file_name)
 		output_file << line_stream.rdbuf() << endl;
 	}
 
-	cout << "Reduced point cloud successfully exported to file: " << output_file_name << endl << endl;
-	cout << "Point cloud was reduced from " << cloud.points.size() << " points to " << new_clusters.size() << " points." << endl;
+	cout.imbue(locale(""));
+	cout << endl << endl << "Point cloud was reduced from " << cloud.points.size() << " points to " << new_clusters.size() << " points." << endl;
 	cout << "That is " << new_clusters.size() / static_cast<float>(cloud.points.size()) * 100 << "%.";
 }
 
@@ -568,6 +552,10 @@ int main(const int argc, char* argv[])
 		cout << endl << endl << "Error! Could not write to output file (" + output_file_name + ").";
 		return -1;
 	}
+
+	cout << endl << endl << "Press ANY key to exit the program...";
+
+	std::getchar();
 
 	return 0;
 }
