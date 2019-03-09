@@ -4,7 +4,6 @@
 #include <string>
 
 #include "point.hpp"
-//#include "kdtree.hpp"
 #include <sstream>
 #include <iomanip>
 #include "rply.h"
@@ -12,17 +11,13 @@
 #include "point_cloud.hpp"
 
 using namespace std;
-//using namespace kdt;
 using namespace nanoflann;
 
 typedef vector<int> cluster;
-typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, 3> my_tree;
+typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, 3> tree; // K-D tree holding indices from "points" vector
 
 point_cloud<float> cloud;
-
-//vector<point> points; // points of point cloud themselves (there are expected to be millions of points == tens of millions of bytes)
-vector<cluster> clusters; // vector of clusters, where cluster holds indices to its members (first index refers to cluster centroid)
-//kd_tree<point> tree; // K-D tree holding indices from "points" vector
+vector<cluster> clusters; // vector of clusters, where cluster holds indices to its members (index 0 refers to cluster centroid)
 
 // Space Interval Threshold (DT) - largest distance from cluster centroid to any cluster member
 float space_interval_dt;
@@ -59,7 +54,7 @@ end_header
 int position = 0;
 float buffer[9];
 
-static int vertex_cb(const p_ply_argument argument) 
+static int vertex_cb(const p_ply_argument argument)
 {
 	buffer[position] = static_cast<float>(ply_get_argument_value(argument));
 	position++;
@@ -118,7 +113,7 @@ void build_tree()
 /** @brief Creates initial clusters. If point is not marked, it becames centroid of new cluster. 
  *	This new cluster contains non-marked neighbours of centroid whose distance is less than or equal to Space Interval Threshold (DT).
 */
-void cluster_initialization(my_tree& my_tree)
+void cluster_initialization(tree& my_tree)
 {
 	cout << "Initializing clusters." << endl;
 
@@ -351,10 +346,8 @@ string process_args(const int argc, char* argv[])
 
 /** @brief Cluster is boudary if there are less less than 6 centroids in vicinity of sqrt(3) * space_interval_dt.
 */
-bool is_boundary_cluster (const cluster& init_cluster, const my_tree& my_tree)
+bool is_boundary_cluster (const cluster& init_cluster, const tree& my_tree)
 {
-	//point& centroid_point = points[init_cluster[0]]; // index to centroid is at index 0 in cluster
-
 	float* centroid = cloud.points[init_cluster[0]].data; // index to centroid is at index 0 in cluster
 
 	const float radius = static_cast<float>(sqrt(3) * space_interval_dt);
@@ -363,8 +356,6 @@ bool is_boundary_cluster (const cluster& init_cluster, const my_tree& my_tree)
 
 	RadiusResultSet<float, size_t> result_set(radius, indices_dists);
 	my_tree.findNeighbors(result_set, centroid, nanoflann::SearchParams());
-
-	//vector<int> neighbours_indices = tree.knn_search(centroid, static_cast<int>(sqrt(3) * space_interval_dt));
 
 	int number_of_centroid = 0;
 
@@ -555,8 +546,8 @@ int main(const int argc, char* argv[])
 		return -1;
 	}
 
-	cout << "Building K-D tree. This may take even few minutes depending on point cloud size." << endl;
-	my_tree new_tree(3, cloud, KDTreeSingleIndexAdaptorParams(50));
+	cout << "Building K-D tree." << endl;
+	tree new_tree(3, cloud, KDTreeSingleIndexAdaptorParams(50));
 	new_tree.buildIndex();
 
 	cluster_initialization(new_tree);
