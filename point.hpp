@@ -5,6 +5,8 @@
 class point
 {
 public:
+	static const int dimension = 3;
+
 	bool is_centroid = false;
 	bool is_marked = false;
 
@@ -36,7 +38,7 @@ public:
 
 	/** @brief Euclidian distance of this point to another point.
 	*/
-	double distance(const point& other)
+	double distance(const point& other) const
 	{
 		double distance = 0;
 

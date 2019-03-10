@@ -13,7 +13,7 @@ using namespace std;
 using namespace nanoflann;
 
 typedef vector<size_t> cluster;
-typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, 3> tree; // K-D tree holding indices from "points" vector
+typedef KDTreeSingleIndexAdaptor <L2_Simple_Adaptor<float, point_cloud<float> >, point_cloud<float>, point::dimension> tree; // K-D tree holding indices from "points" vector
 
 point_cloud<float> cloud; // point cloud itself holding actual data to points
 vector<cluster> initial_clusters; // cluster holds indices to its members (index 0 refers to cluster centroid)
@@ -31,7 +31,6 @@ enum user_def_variables { space_interval_var, vector_deviation_var };
 
 string file_name_extention(".ply");
 string default_file_name("PointCloud" + file_name_extention);
-
 
 int position = 0;
 float buffer[9];
@@ -68,6 +67,7 @@ property float ny
 property float nz
 end_header
 
+Other elements, properties and comments are ignored and are not transfered into output file.
 */
 void import_point_cloud(const string& file_name)
 {
@@ -102,11 +102,11 @@ void import_point_cloud(const string& file_name)
 /** @brief Creates initial clusters. If point is not marked, it becames centroid of new cluster. 
  *	This new cluster contains non-marked neighbours of centroid whose distance is less than or equal to Space Interval Threshold (DT).
 */
-void cluster_initialization(tree& my_tree)
+void cluster_initialization(const tree& my_tree)
 {
 	cout << "Initializing clusters." << endl;
 
-	for (size_t i = 0; i < cloud.points.size(); i++)
+	for (size_t i = 0; i < cloud.points.size(); ++i)
 	{
 		if (!cloud.points[i].is_marked)
 		{
@@ -124,11 +124,11 @@ void cluster_initialization(tree& my_tree)
 			current_cluster.reserve(indices_dists.size());
 
 			// fill the new cluster
-			for (size_t j = 0; j < indices_dists.size(); j++)
+			for (size_t j = 0; j < indices_dists.size(); ++j)
 			{
 				size_t point_index = indices_dists[j].first;
 
-				if (!cloud.points[point_index].is_marked) // do not copy indices to marked points to cluster
+				if (!cloud.points[point_index].is_marked) // do not copy indices to marked points to cluster; they already are in another cluster
 				{
 					current_cluster.push_back(point_index);
 					cloud.points[point_index].is_marked = true;
@@ -241,7 +241,7 @@ float manual_float_input(const user_def_variables& user_var)
 		break;
 	}
 
-	return  return_value;
+	return return_value;
 }
 
 /** @brief Processes input float arguments. If there are no arguments or values are invalid, used is asked to provide them to console.
@@ -296,7 +296,7 @@ float process_float_arg(const int argc, char** argv, const int index, const user
 }
 
 /** @brief Processes input arguments containing filename and user defined variables (Space Interval Threshold (DT) and Normal Vector Deviation Threshold (NT)).
- *	If there are no arguments, used is asked to provide them to console.
+ *	If there are no arguments, user is asked to provide them to console.
 */
 string process_args(const int argc, char* argv[])
 {
@@ -346,7 +346,7 @@ bool is_boundary_cluster (const cluster& init_cluster, const tree& my_tree)
 
 	int number_of_centroid = 0;
 
-	for (size_t i = 0; i < indices_dists.size(); i++)
+	for (size_t i = 0; i < indices_dists.size(); ++i)
 	{
 		if (cloud.points[indices_dists[i].first].is_centroid)
 		{
@@ -354,17 +354,17 @@ bool is_boundary_cluster (const cluster& init_cluster, const tree& my_tree)
 		}
 	}
 
-	// there is always one centroid from initial cluster - that one does not count to neighbouring centroids count but it is always returned from knn_search
+	// there is always one centroid from initial cluster - that one does not count to neighbouring centroids count but it is always returned from radiusSearch
 	return number_of_centroid < 7;
 }
 
-/** @brief Returns indices to clusters which are boundary clusters
+/** @brief Returns indices to clusters which are boundary clusters.
 */
 vector<size_t> boundary_cluster_detection(const tree& tree)
 {
 	vector<size_t> cluster_indices;
 
-	for (size_t i = 0; i < initial_clusters.size(); i++)
+	for (size_t i = 0; i < initial_clusters.size(); ++i)
 	{
 		if (is_boundary_cluster(initial_clusters[i], tree))
 		{
@@ -382,15 +382,16 @@ void boundary_cluster_subdivision(const vector<int>& boundary_clusters)
 }*/
 
 /** @brief Standard deviation of normal vectors of 2 points. Normal vectors are expected to be normalized, therefore return value is between 0 and 1.
+ *	Deviation is based on Euclidian distance
 */
 float standard_deviation(const point& p1, const point& p2)
 {
 	float sum = 0;
 
-	for (size_t i = 0; i < 3; i++)
+	for (size_t i = 6; i < 6 + point::dimension; ++i) // normal vector coordinates are in array on indices 6, 7 and 8
 		sum += pow(p1.data[i] - p2.data[i], 2);
 
-	return sqrt((sum) / 2);
+	return sqrt(sum / 2);
 }
 
 /** @brief Returns new means (indices to cluster of pair of points with largest deviation of normal vectors).
@@ -406,9 +407,9 @@ pair<int, int> new_means(const cluster& cluster)
 	float max_deviation = 0;
 	int max_index1, max_index2;
 
-	for (size_t i = 0; i < cluster.size() - 1; i++)
+	for (size_t i = 0; i < cluster.size() - 1; ++i)
 	{
-		for (size_t j = i; j < cluster.size(); j++)
+		for (size_t j = i + 1; j < cluster.size(); ++j)
 		{
 			const float local_deviation = standard_deviation(cloud.points[cluster[i]], cloud.points[cluster[j]]);
 
@@ -422,16 +423,12 @@ pair<int, int> new_means(const cluster& cluster)
 	}
 
 	if (max_deviation >= vector_deviation_nt)
-	{
 		return { max_index1, max_index2 }; // indices to cluster of pair of points with largest deviation of normal vectors 
-	}
 	else
-	{
 		return { -1, -1 }; // indicator that cluster should not be divided
-	}
 }
 
-/** @brief Simplified k-means clustering algorithm with k=2 and non-moving predetermined centroid (1-iteration)
+/** @brief Simplified k-means clustering algorithm with k=2, non-moving predetermined centroid and 1 iteration.
 */
 pair<cluster, cluster> k_means_clustering(const cluster& init_cluster, const pair<int, int>& means)
 {
@@ -440,9 +437,9 @@ pair<cluster, cluster> k_means_clustering(const cluster& init_cluster, const pai
 	temp1.push_back(init_cluster[means.first]);
 	temp2.push_back(init_cluster[means.second]);
 
-	for (size_t i = 0; i < init_cluster.size(); i++)
+	for (size_t i = 0; i < init_cluster.size(); ++i)
 	{
-		if (static_cast<int>(i) == means.first || static_cast<int>(i) == means.second)
+		if (static_cast<int>(i) == means.first || static_cast<int>(i) == means.second) // means are already at beginnings of temporary clusters
 			continue;
 
 		const double distance_to_mean1 = cloud.points[init_cluster[i]].distance(cloud.points[init_cluster[means.first]]);
@@ -482,16 +479,14 @@ void recursive_cluster_subdivision(const cluster& init_cluster)
 	}
 }
 
-/** @brief Calls subdivision on all clusters
+/** @brief Calls subdivision on all clusters.
 */
 void main_cluster_subdivision()
 {
 	cout << "Dividing clusters." << endl;
 
-	for (size_t i = 0; i < initial_clusters.size(); i++)
-	{
+	for (size_t i = 0; i < initial_clusters.size(); ++i)
 		recursive_cluster_subdivision(initial_clusters[i]);
-	}
 }
 
 /** @brief Exports centroid from new_clusters. Exported file has same header and format as input file.
@@ -509,11 +504,11 @@ void export_point_cloud(const string& output_file_name)
 	output_file << "property float nx" << endl << "property float ny" << endl << "property float nz" << endl;
 	output_file << "end_header" << endl;
 
-	for (size_t i = 0; i < new_clusters.size(); i++)
+	for (size_t i = 0; i < new_clusters.size(); ++i)
 	{
 		stringstream line_stream; // for simple buffering		
 
-		for (size_t j = 0; j < 9; j++)
+		for (size_t j = 0; j < 9; ++j)
 		{
 			// goes through all clusters, takes points from index 0 (centroid of that cluster) and writes its array elements (coordinates, color and normal vectors)
 			line_stream << std::setprecision(7) << cloud.points[new_clusters[i][0]].data[j];
@@ -527,6 +522,14 @@ void export_point_cloud(const string& output_file_name)
 
 	cout << endl << endl << "Point cloud was reduced from " << cloud.points.size() << " points to " << new_clusters.size() << " points." << endl;
 	cout << "That is " << new_clusters.size() / static_cast<float>(cloud.points.size()) * 100 << "%.";
+}
+
+/** @brief Wait for Enter key to be pressed. Used to prevent closing console.
+*/
+void wait_for_enter()
+{
+	cout << endl << endl << "Press ENTER key to exit the program...";
+	std::getchar();
 }
 
 /** @brief Entry point. Arguments should contain filename as string, Space Interval Threshold (DT) as float 
@@ -545,14 +548,13 @@ int main(const int argc, char* argv[])
 	{
 		cout << endl << endl << "Error! File " + input_file_name + " was not successfully imported or parsed!";
 
-		cout << endl << endl << "Press ANY key to exit the program...";
-		std::getchar();
+		wait_for_enter();
 
 		return -1;
 	}
 
 	cout << "Building K-D tree." << endl;
-	tree tree(3, cloud, KDTreeSingleIndexAdaptorParams(50));
+	tree tree(point::dimension, cloud, KDTreeSingleIndexAdaptorParams(50));
 	tree.buildIndex();
 
 	cluster_initialization(tree);
@@ -572,14 +574,12 @@ int main(const int argc, char* argv[])
 	{
 		cout << endl << endl << "Error! Could not write to output file (" + output_file_name + ").";
 
-		cout << endl << endl << "Press ANY key to exit the program...";
-		std::getchar();
+		wait_for_enter();
 
 		return -1;
 	}
 
-	cout << endl << endl << "Press ANY key to exit the program...";
-	std::getchar();
+	wait_for_enter();
 
 	return 0;
 }
