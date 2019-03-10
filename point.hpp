@@ -1,15 +1,14 @@
 ﻿#pragma once
 
+/** @brief Data class holding info for 1 point from point cloud. Data is stored in array for easier iterative access.
+*/
 class point
 {
 public:
-	// dimension of space / "k" of k-d tree (KDTree class accesses this member)
-	static const int dimension = 3;
-
 	bool is_centroid = false;
 	bool is_marked = false;
 
-	float data[9]{};
+	float data[9]{}; // actual data of point (coordinates, color, normal vector)
 
 	// X/Y/Z world coordinates, R/G/B colors, NX/NY/NZ coordinates of normal vectors
 	point(const float x, const float y, const float z, const float r, const float g, const float b, const float nx, const float ny, const float nz)
@@ -35,6 +34,8 @@ public:
 		}
 	}
 
+	/** @brief Euclidian distance of this point to another point.
+	*/
 	double distance(const point& other)
 	{
 		double distance = 0;

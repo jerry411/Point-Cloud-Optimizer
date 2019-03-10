@@ -3,6 +3,8 @@
 #include "point.hpp"
 #include <vector>
 
+/** @brief Data class containing vector of actual points. Other data structures holds indices to this vector.
+*/
 template <typename T>
 struct point_cloud
 {

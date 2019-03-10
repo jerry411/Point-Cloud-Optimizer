@@ -35,7 +35,7 @@ string default_file_name("PointCloud" + file_name_extention);
 
 int position = 0;
 float buffer[9];
-/** @brief Callback for parse. This method is called for every element found
+/** @brief Callback for parse. This method is called for every element found.
 */
 static int vertex_cb(const p_ply_argument argument)
 {
@@ -306,7 +306,7 @@ string process_args(const int argc, char* argv[])
 	{
 		file_name = argv[1];
 
-		if (file_name.length() < 5 || file_name.find_last_of(file_name_extention) != file_name.length() - file_name_extention.length())
+		if (file_name.length() < 5 || file_name.find(file_name_extention) == string::npos)
 		{
 			file_name += file_name_extention;
 		}
@@ -321,7 +321,7 @@ string process_args(const int argc, char* argv[])
 			cout << "Using default file name: " << default_file_name << endl;
 			file_name = default_file_name;
 		}
-		else if (file_name.length() < 5 || file_name.find_last_of(file_name_extention) != file_name.length() - file_name_extention.length())
+		else if (file_name.length() < 5 || file_name.find(file_name_extention) == string::npos)
 		{
 			file_name += file_name_extention;
 		}
@@ -356,6 +356,23 @@ bool is_boundary_cluster (const cluster& init_cluster, const tree& my_tree)
 
 	// there is always one centroid from initial cluster - that one does not count to neighbouring centroids count but it is always returned from knn_search
 	return number_of_centroid < 7;
+}
+
+/** @brief Returns indices to clusters which are boundary clusters
+*/
+vector<size_t> boundary_cluster_detection(const tree& tree)
+{
+	vector<size_t> cluster_indices;
+
+	for (size_t i = 0; i < initial_clusters.size(); i++)
+	{
+		if (is_boundary_cluster(initial_clusters[i], tree))
+		{
+			cluster_indices.push_back(i);
+		}
+	}
+
+	return cluster_indices;
 }
 
 /*
@@ -527,16 +544,20 @@ int main(const int argc, char* argv[])
 	catch (const std::exception&)
 	{
 		cout << endl << endl << "Error! File " + input_file_name + " was not successfully imported or parsed!";
+
+		cout << endl << endl << "Press ANY key to exit the program...";
+		std::getchar();
+
 		return -1;
 	}
 
 	cout << "Building K-D tree." << endl;
-	tree new_tree(3, cloud, KDTreeSingleIndexAdaptorParams(50));
-	new_tree.buildIndex();
+	tree tree(3, cloud, KDTreeSingleIndexAdaptorParams(50));
+	tree.buildIndex();
 
-	cluster_initialization(new_tree);
+	cluster_initialization(tree);
 
-	//const vector<int> boundary_clusters = boundary_cluster_detection();
+	//const vector<size_t> boundary_clusters_indices = boundary_cluster_detection(tree);
 	//boundary_cluster_subdivision(boundary_clusters);
 
 	main_cluster_subdivision();
@@ -550,11 +571,14 @@ int main(const int argc, char* argv[])
 	catch (const std::exception&)
 	{
 		cout << endl << endl << "Error! Could not write to output file (" + output_file_name + ").";
+
+		cout << endl << endl << "Press ANY key to exit the program...";
+		std::getchar();
+
 		return -1;
 	}
 
 	cout << endl << endl << "Press ANY key to exit the program...";
-
 	std::getchar();
 
 	return 0;
