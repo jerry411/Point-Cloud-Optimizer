@@ -31,6 +31,7 @@ enum user_def_variables { space_interval_var, vector_deviation_var };
 
 string file_name_extention(".ply");
 string default_file_name("PointCloud" + file_name_extention);
+string modified_file_suffix("_REDUCED");
 
 int position = 0;
 float buffer[9];
@@ -564,7 +565,7 @@ int main(const int argc, char* argv[])
 
 	main_cluster_subdivision();
 
-	const string output_file_name = input_file_name.substr(0, input_file_name.size() - 4) + "_REDUCED" + file_name_extention;
+	const string output_file_name = input_file_name.substr(0, input_file_name.size() - 4) + modified_file_suffix + file_name_extention;
 
 	try
 	{
